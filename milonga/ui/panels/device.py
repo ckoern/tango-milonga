@@ -23,14 +23,21 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from milonga.core.commands import PropertyTarget, SetAttributeConfig
-from milonga.core.enums import AttrDataFormat, DataSource, StateCategory, TangoState
+from milonga.core.commands import PropertyTarget, SetAttributeConfig, SetPolling
+from milonga.core.enums import (
+    AttrDataFormat,
+    DataSource,
+    PollableKind,
+    StateCategory,
+    TangoState,
+)
 from milonga.core.errors import ErrorReport
 from milonga.core.model import (
     AttributeSpec,
     CommandSpec,
     DeviceSnapshot,
     DeviceVersionInfo,
+    PollingEntry,
 )
 from milonga.core.names import AttributeRef, DeviceName
 from milonga.ui.context import AppContext, Target
@@ -40,11 +47,12 @@ from milonga.ui.live import LiveAttributes
 from milonga.ui.models.tables import ObjectTableModel
 from milonga.ui.models.values import AttributeValuesModel
 from milonga.ui.panels.base import InfoForm, Panel
-from milonga.ui.panels.columns import attribute_columns, command_columns
+from milonga.ui.panels.columns import attribute_columns, command_columns, polling_columns
 from milonga.ui.plots import ImageView, SpectrumView
 from milonga.ui.property_editor import PropertyEditor
 from milonga.ui.theme import Tokens, device_state_category
 from milonga.ui.widgets import CommandBar, WriteBar
+from milonga.ui.wizards import PollingDialog
 from milonga.ui.write import WriteAction
 
 STATE_ATTRIBUTE = "State"
@@ -88,6 +96,7 @@ class DevicePanel(Panel):
         self.tabs.addTab(self._commands_tab(), "Commands")
         self.tabs.addTab(self.properties, "Properties")
         self.tabs.addTab(self._config_tab(), "Config")
+        self.tabs.addTab(self._polling_tab(), "Polling")
         self.tabs.addTab(self.info, "Info")
 
         layout = self.base_layout()
@@ -186,6 +195,73 @@ class DevicePanel(Panel):
             on_result=self._apply_attributes,
             on_error=self._failed,
         )
+        self._load_polling()
+
+    def _polling_tab(self) -> QWidget:
+        page = QWidget(self)
+        self.polling = ObjectTableModel(polling_columns(), self)
+        self.polling_view = self.make_table(self.polling)
+        writable = not self.context.read_only
+        self.poll_button = QPushButton("Poll…", page)
+        self.poll_button.setEnabled(writable)
+        self.poll_button.clicked.connect(self._edit_polling)
+        self.stop_poll_button = QPushButton("Stop polling", page)
+        self.stop_poll_button.setEnabled(writable)
+        self.stop_poll_button.clicked.connect(self._stop_polling)
+
+        toolbar = QHBoxLayout()
+        toolbar.setContentsMargins(0, 0, 0, 0)
+        toolbar.addWidget(self.poll_button)
+        toolbar.addWidget(self.stop_poll_button)
+        toolbar.addStretch(1)
+
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 8, 0, 0)
+        layout.setSpacing(8)
+        layout.addLayout(toolbar)
+        layout.addWidget(self.polling_view, 1)
+        return page
+
+    def _pollable(self) -> list[tuple[str, PollableKind]]:
+        items = [(spec.name, PollableKind.ATTRIBUTE) for spec in self.values.specs]
+        for row in range(self.commands.rowCount()):
+            command = self.commands.row_at(self.commands.index(row, 0))
+            if command is not None:
+                items.append((command.name, PollableKind.COMMAND))
+        return items
+
+    def _selected_polling(self) -> PollingEntry | None:
+        selection = self.polling_view.selectionModel()
+        if selection is None:
+            return None
+        return self.polling.row_at(selection.currentIndex())
+
+    def _edit_polling(self) -> None:
+        current = self._selected_polling()
+        dialog = PollingDialog(
+            self._pollable(),
+            self.tokens,
+            selected=current.name if current else "",
+            period_ms=current.period_ms if current else 1000,
+            parent=self,
+        )
+        if not dialog.exec():
+            return
+        name, kind = dialog.chosen()
+        self.write.execute([SetPolling(self.device, name, kind, dialog.period_ms())])
+
+    def _stop_polling(self) -> None:
+        current = self._selected_polling()
+        if current is None:
+            return
+        self.write.execute([SetPolling(self.device, current.name, current.kind, 0)])
+
+    def _load_polling(self) -> None:
+        self.runner.run(
+            self.context.backend.get_polling(self.device),
+            on_result=self.polling.set_rows,
+            on_error=self._failed,
+        )
 
     def _commands_tab(self) -> QWidget:
         page = QWidget(self)
@@ -275,10 +351,12 @@ class DevicePanel(Panel):
         )
         if info.exported:
             self._load_device_interface()
+            self._load_polling()
         else:
             self.values.set_specs([])
             self.specs.set_rows([])
             self.commands.set_rows([])
+            self.polling.set_rows([])
             self._update_summary()
 
     def _load_device_interface(self) -> None:

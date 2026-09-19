@@ -1,26 +1,39 @@
 """The navigator: Jive's five trees and Astor's host tree as one widget."""
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from enum import StrEnum
 
-from PyQt6.QtCore import QModelIndex, QSortFilterProxyModel, Qt, pyqtSignal
+from PyQt6.QtCore import QModelIndex, QPoint, QSortFilterProxyModel, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox,
     QLineEdit,
+    QMenu,
     QTreeView,
     QVBoxLayout,
     QWidget,
 )
 
+from milonga.core.commands import (
+    CreateDevice,
+    CreateServer,
+    DeleteDevice,
+    DeleteServer,
+    RenameDevice,
+    RenameServer,
+    SetDeviceAlias,
+)
 from milonga.core.enums import StateCategory
 from milonga.core.model import HostSnapshot, ServerSnapshot
 from milonga.core.names import DeviceName, ServerName
 from milonga.core.tasks import gather_limited
 from milonga.ui.context import AppContext, Target
+from milonga.ui.dialogs import NameDialog
 from milonga.ui.models.delegate import NodeDelegate
 from milonga.ui.models.tree import LazyTreeModel, NodeKind, TreeNode
 from milonga.ui.tasks import TaskRunner
 from milonga.ui.theme import Tokens, host_state_category, run_state_category
+from milonga.ui.wizards import AddDeviceDialog, AddHostDialog, NewServerDialog
+from milonga.ui.write import WriteAction
 
 
 class Scope(StrEnum):
@@ -184,6 +197,12 @@ class ScopeLoader:
         )
 
 
+def _action(menu: QMenu, text: str, slot: Callable[[], None], enabled: bool) -> None:
+    action = menu.addAction(text, slot)
+    if action is not None:
+        action.setEnabled(enabled)
+
+
 def _preview(values: Sequence[str]) -> str:
     if not values:
         return ""
@@ -214,6 +233,7 @@ class Navigator(QWidget):
     def __init__(self, context: AppContext, tokens: Tokens, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._context = context
+        self._tokens = tokens
         self._loader = ScopeLoader(context)
         self._runner = TaskRunner(self, context.journal, context="navigator")
 
@@ -243,6 +263,12 @@ class Navigator(QWidget):
         selection = self.view.selectionModel()
         if selection is not None:
             selection.currentChanged.connect(self._current_changed)
+
+        self.view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.view.customContextMenuRequested.connect(self._context_menu)
+        self.write = WriteAction(context, tokens, self._runner, self)
+        self.write.done.connect(self.refresh)
+        self.write.failed.connect(lambda report: context.journal.report(report, "navigator"))
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
@@ -278,6 +304,123 @@ class Navigator(QWidget):
 
     def _current_changed(self, current: QModelIndex, _previous: QModelIndex) -> None:
         self.nodeSelected.emit(self.node_at(current))
+
+    # ------------------------------------------------------------ create and remove
+
+    def create_here(self) -> None:
+        """What “New…” means depends on the scope being browsed."""
+        if self.scope is Scope.HOSTS:
+            self.add_host()
+        else:
+            self.new_server()
+
+    def _context_menu(self, point: QPoint) -> None:
+        node = self.node_at(self.view.indexAt(point))
+        menu = QMenu(self)
+        writable = not self._context.read_only
+        if self.scope is Scope.HOSTS:
+            _action(menu, "Add controlled host…", self.add_host, writable)
+        else:
+            _action(menu, "New server…", self.new_server, writable)
+        if node is not None:
+            self._node_actions(menu, node, writable)
+        viewport = self.view.viewport()
+        if viewport is not None:
+            menu.exec(viewport.mapToGlobal(point))
+
+    def _node_actions(self, menu: QMenu, node: TreeNode, writable: bool) -> None:
+        menu.addSeparator()
+        match node.kind:
+            case NodeKind.SERVER:
+                _action(menu, "Add device…", lambda: self._add_device(node.payload), writable)
+                _action(
+                    menu, "Rename server…", lambda: self._rename_server(node.payload), writable
+                )
+                _action(
+                    menu, "Delete server…", lambda: self._delete_server(node.payload), writable
+                )
+            case NodeKind.DEVICE:
+                _action(
+                    menu, "Rename device…", lambda: self._rename_device(node.payload), writable
+                )
+                _action(menu, "Set alias…", lambda: self._set_alias(node.payload), writable)
+                _action(
+                    menu, "Delete device…", lambda: self._delete_device(node.payload), writable
+                )
+            case _:
+                pass
+
+    def new_server(self) -> None:
+        self._runner.run(
+            self._context.backend.get_host_list(), on_result=self._ask_new_server
+        )
+
+    def _ask_new_server(self, hosts: tuple[str, ...]) -> None:
+        dialog = NewServerDialog(hosts, self._tokens, self)
+        if not dialog.exec():
+            return
+        self.write.execute(
+            [
+                CreateServer(
+                    dialog.server(),
+                    dialog.registrations(),
+                    dialog.host_name(),
+                    dialog.startup_level(),
+                )
+            ]
+        )
+
+    def add_host(self) -> None:
+        dialog = AddHostDialog(self._tokens, self)
+        if not dialog.exec():
+            return
+        self.write.execute(
+            [
+                CreateServer(
+                    dialog.server(), (dialog.registration(),), dialog.host_name(), level=0
+                )
+            ]
+        )
+
+    def _add_device(self, server: ServerName) -> None:
+        self._runner.run(
+            self._context.backend.get_class_list(),
+            on_result=lambda classes: self._ask_add_device(server, classes),
+        )
+
+    def _ask_add_device(self, server: ServerName, classes: tuple[str, ...]) -> None:
+        dialog = AddDeviceDialog(server, classes, self._tokens, self)
+        if dialog.exec():
+            self.write.execute([CreateDevice(dialog.registration())])
+
+    def _rename_server(self, server: ServerName) -> None:
+        dialog = NameDialog("Rename server", "New name", str(server), self)
+        if not dialog.exec() or dialog.name() == str(server):
+            return
+        self.write.execute([RenameServer(server, ServerName.parse(dialog.name()))])
+
+    def _delete_server(self, server: ServerName) -> None:
+        self.write.execute([DeleteServer(server)])
+
+    def _rename_device(self, device: DeviceName) -> None:
+        dialog = NameDialog("Rename device", "New name", str(device), self)
+        if not dialog.exec() or dialog.name() == str(device):
+            return
+        self.write.execute([RenameDevice(device, DeviceName.parse(dialog.name()))])
+
+    def _set_alias(self, device: DeviceName) -> None:
+        self._runner.run(
+            self._context.backend.get_alias_from_device(device),
+            on_result=lambda alias: self._ask_alias(device, alias or ""),
+        )
+
+    def _ask_alias(self, device: DeviceName, alias: str) -> None:
+        dialog = NameDialog("Device alias", "Alias (empty removes it)", alias, self)
+        if dialog.exec():
+            self.write.execute([SetDeviceAlias(device, dialog.name())])
+
+    def _delete_device(self, device: DeviceName) -> None:
+        self.write.execute([DeleteDevice(device)])
 
     def _activated(self, index: QModelIndex) -> None:
         node = self.node_at(index)

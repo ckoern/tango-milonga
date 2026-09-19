@@ -252,7 +252,6 @@ QLineEdit, QComboBox, QSpinBox, QPlainTextEdit, QTextEdit {{
     selection-color: {tokens.accent};
 }}
 QLineEdit:focus, QComboBox:focus {{ border-color: {tokens.accent}; }}
-QComboBox::drop-down {{ border: none; width: 18px; }}
 QPushButton {{
     background: {tokens.panel};
     border: 1px solid {tokens.line};

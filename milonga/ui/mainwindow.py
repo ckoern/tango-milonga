@@ -246,6 +246,12 @@ class MainWindow(QMainWindow):
         search.triggered.connect(self.open_search)
         toolbar.addAction(search)
 
+        create = QAction("New…", self)
+        create.setShortcut(QKeySequence("Ctrl+N"))
+        create.setEnabled(not self.context.read_only)
+        create.triggered.connect(self.navigator.create_here)
+        toolbar.addAction(create)
+
         refresh = QAction("Refresh", self)
         refresh.setShortcut(QKeySequence("F5"))
         refresh.triggered.connect(self.refresh_current)

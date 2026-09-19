@@ -324,8 +324,22 @@ value; a write is always an explicit action, never a side effect of focus loss.
 | 3 ✓ | Device panel: attributes, commands, spectra, images | Unblocks "is my device alive" |
 | 4 ✓ | Write path: Command/Diff/Journal, property editing, attribute config | First mutations, with the safety net already in place |
 | 5 ✓ | Astor: overview, host panel, Starter control, levels, logs | Needs the write path's confirmation machinery |
-| 6 | Wizards, polling, events, statistics, versions, TAC | The long tail that makes replacement complete |
+| 6 ◑ | Wizards, polling, events, statistics, versions, TAC | The long tail that makes replacement complete |
 | 7 | Packaging, plugin entry points, docs | Ship |
+
+Milestone 6 delivered the creation and removal wizards (server, device,
+controlled host), polling configuration, and per-process statistics and Tango
+versions. Two parts of it are deliberately not built:
+
+* **Astor's event manager.** The list of *subscribers* to an attribute lives in
+  the event system's internals, which the backend protocol does not expose and
+  which cannot be read through the device API. Attribute event *configuration*
+  (change, periodic and archive criteria) is editable in the device panel's
+  attribute configuration dialog.
+* **A bespoke TAC editor.** Access control is stored as properties on the
+  `AccessControl` device, so it is already editable through the property
+  editor. A dedicated editor would have to encode a schema this project has no
+  way to verify yet; it waits for a real control system to test against.
 
 ---
 

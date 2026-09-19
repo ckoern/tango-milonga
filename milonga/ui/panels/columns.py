@@ -1,7 +1,16 @@
 """Column definitions shared by the read-only tables."""
 
+from datetime import datetime
+
 from milonga.core.enums import StateCategory
-from milonga.core.model import AttributeSpec, CommandSpec, DeviceSnapshot, ServerSnapshot
+from milonga.core.model import (
+    AttributeSpec,
+    CommandSpec,
+    DeviceSnapshot,
+    PollingEntry,
+    ServerSnapshot,
+)
+from milonga.core.services.diagnostics import ServerDetail, format_uptime
 from milonga.ui.models.tables import Column
 from milonga.ui.theme import run_state_category
 
@@ -62,3 +71,40 @@ def server_columns() -> list[Column[ServerSnapshot]]:
         ),
         Column("Controlled", lambda row: "yes" if row.info.controlled else "no"),
     ]
+
+
+def polling_columns() -> list[Column[PollingEntry]]:
+    return [
+        Column("Name", lambda row: row.name, mono=True, stretch=2),
+        Column("Kind", lambda row: row.kind.value),
+        Column("Period", lambda row: f"{row.period_ms} ms", align_right=True),
+        Column(
+            "Polled",
+            lambda row: "yes" if row.polled else "no",
+            category=lambda row: (
+                StateCategory.NOMINAL if row.polled else StateCategory.INACTIVE
+            ),
+        ),
+    ]
+
+
+def detail_columns() -> list[Column[ServerDetail]]:
+    return [
+        Column("Server", lambda row: str(row.name), mono=True, stretch=2),
+        Column(
+            "State",
+            lambda row: "running" if row.running else "stopped",
+            category=lambda row: (
+                StateCategory.NOMINAL if row.running else StateCategory.FAULT
+            ),
+        ),
+        Column("PID", lambda row: str(row.pid or "—"), align_right=True),
+        Column("Started", lambda row: _stamp(row.started_at)),
+        Column("Uptime", lambda row: format_uptime(row.uptime()), align_right=True),
+        Column("IDL", lambda row: str(row.version.idl_version) if row.version else "—"),
+        Column("Release", lambda row: row.version.tango_release if row.version else "—"),
+    ]
+
+
+def _stamp(value: datetime | None) -> str:
+    return value.strftime("%Y-%m-%d %H:%M") if value else "—"

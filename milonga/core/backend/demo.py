@@ -1,5 +1,7 @@
 """A populated :class:`FakeBackend`, used by the tests and by demo mode."""
 
+from datetime import datetime, timedelta
+
 import numpy as np
 
 from milonga.core.backend.fake import FakeBackend
@@ -8,6 +10,7 @@ from milonga.core.enums import (
     AttrWriteType,
     DisplayLevel,
     PropertyScope,
+    ServerRunState,
     TangoType,
 )
 from milonga.core.model import AlarmConfig, AttributeSpec, CommandSpec, EventConfig
@@ -21,7 +24,22 @@ def build_demo_backend(**kwargs: object) -> FakeBackend:
     backend = FakeBackend(tango_host="tango-cs.id09:10000", **kwargs)  # type: ignore[arg-type]
     _build_beamline(backend)
     _build_accelerator(backend)
+    _age_running_servers(backend)
     return backend
+
+
+def _age_running_servers(backend: FakeBackend) -> None:
+    """Give the demo plausible uptimes instead of everything starting at once."""
+    started = datetime.now()
+    for index, server in enumerate(sorted(backend.servers, key=str)):
+        entry = backend.servers[server]
+        if entry.run_state is not ServerRunState.RUNNING:
+            continue
+        age = timedelta(hours=6 * (index % 13) + 1, minutes=7 * (index % 9))
+        entry.started_at = started - age
+        admin = backend.devices.get(server.admin_device)
+        if admin is not None:
+            admin.exported_at = entry.started_at
 
 
 def _build_beamline(backend: FakeBackend) -> None:

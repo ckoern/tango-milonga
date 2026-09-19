@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QSplitter,
+    QTabWidget,
     QTreeView,
     QVBoxLayout,
     QWidget,
@@ -25,12 +26,15 @@ from milonga.core.enums import NOT_CONTROLLED_LEVEL
 from milonga.core.errors import ErrorReport
 from milonga.core.model import HostSnapshot, ServerSnapshot
 from milonga.core.names import ServerName
+from milonga.core.services.diagnostics import Diagnostics
 from milonga.ui.context import AppContext, Target
 from milonga.ui.dialogs import ConfirmDialog, LevelDialog
 from milonga.ui.live_hosts import LiveHosts
 from milonga.ui.models.delegate import NodeDelegate
+from milonga.ui.models.tables import ObjectTableModel
 from milonga.ui.models.tree import LazyTreeModel, NodeKind, TreeNode
 from milonga.ui.panels.base import InfoForm, Panel
+from milonga.ui.panels.columns import detail_columns
 from milonga.ui.theme import Tokens, host_state_category, mono_font, run_state_category
 from milonga.ui.widgets import SectionLabel
 from milonga.ui.write import WriteAction
@@ -70,11 +74,18 @@ class HostPanel(Panel):
         self.log.setFont(mono_font())
         self.log.setPlaceholderText("Select a server and press “Read log”")
 
+        self.details = ObjectTableModel(detail_columns(), self)
+        self.details_view = self.make_table(self.details)
+        self.tabs = QTabWidget(self)
+        self.tabs.addTab(self.view, "Startup levels")
+        self.tabs.addTab(self.details_view, "Processes")
+        self.tabs.currentChanged.connect(self._tab_changed)
+
         layout = self.base_layout()
         layout.addWidget(self.info)
         layout.addLayout(self._controls())
         splitter = QSplitter(Qt.Orientation.Vertical, self)
-        splitter.addWidget(self.view)
+        splitter.addWidget(self.tabs)
         log_box = QWidget(splitter)
         log_layout = QVBoxLayout(log_box)
         log_layout.setContentsMargins(0, 6, 0, 0)
@@ -140,6 +151,22 @@ class HostPanel(Panel):
     def refresh(self) -> None:
         self.banner.clear()
         self.runner.run(self.live.watch([self.host]), on_error=self._failed)
+        self._load_details()
+
+    def _tab_changed(self, index: int) -> None:
+        if index == 1:
+            self._load_details()
+
+    def _load_details(self) -> None:
+        snapshot = self.snapshot
+        if snapshot is None:
+            return
+        servers = [server.name for server in snapshot.servers]
+        self.runner.run(
+            Diagnostics(self.context.backend).server_details(servers),
+            on_result=self.details.set_rows,
+            on_error=self._failed,
+        )
 
     @property
     def snapshot(self) -> HostSnapshot | None:
@@ -170,6 +197,8 @@ class HostPanel(Panel):
         )
         self._rebuild_tree(snapshot)
         self._update_buttons()
+        if self.tabs.currentIndex() == 1:
+            self._load_details()
 
     def _rebuild_tree(self, snapshot: HostSnapshot) -> None:
         selected = {str(name) for name in self.selected_servers()}

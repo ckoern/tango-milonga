@@ -16,15 +16,18 @@ replacing the Java tools *Astor* (process control through Starter devices) and
 
 ## Status
 
-Milestones 0 to 5 of the plan in the design concept are implemented: the domain
+Milestones 0 to 6 of the plan in the design concept are implemented: the domain
 layer, the application shell, the read path of Jive, the live device panel, the
-write path, and Astor — the system overview, the host panel with startup levels,
-Starter control and the log viewer. The PyTango backend is not written yet, so
-the application currently runs against the in-memory demo system.
+write path, Astor's process control, and the long tail — creation wizards,
+polling configuration, and per-process statistics and Tango versions. The
+PyTango backend is not written yet, so the application currently runs against
+the in-memory demo system.
 
 ![System overview](docs/screenshot-overview.png)
 
 ![Host panel with startup levels and the Starter log](docs/screenshot-host.png)
+
+![Processes: PID, uptime and Tango version per server](docs/screenshot-processes.png)
 
 ![Device panel with a live spectrum](docs/screenshot-device.png)
 
@@ -41,6 +44,7 @@ milonga/core/                               no Qt, no PyTango
   backend/fake.py, backend/demo.py          in-memory control system, Starter included
   backend/readonly.py                       read-only enforcement in one wrapper
   commands/                                 mutations with preview, apply and revert
+  services/diagnostics.py                   PID, uptime and version per server
   store.py                                  snapshots plus diffs
   monitor.py                                subscription ownership, polling fallback
   services/                                 Starter control, inventory, host groups
@@ -54,6 +58,7 @@ milonga/ui/                                 the only package importing Qt
   write.py                                  preview, confirm, apply, journal
   property_editor.py                        editable properties with pending state
   dialogs.py                                diff, confirmation, values, history
+  wizards.py                                new server, add device, add host, polling
   format.py                                 Tango values to text and back
   plots.py                                  spectrum and image views
   models/                                   lazy tree, generic table, live values
@@ -69,7 +74,7 @@ milonga/ui/                                 the only package importing Qt
 .venv/bin/python -m milonga.cli sys/tg_test/1         # open a device at startup
 ```
 
-Keys: `Ctrl+1` system overview, `Ctrl+K` search, `F5` refresh the current panel.
+Keys: `Ctrl+1` system overview, `Ctrl+K` search, `Ctrl+N` create, `F5` refresh.
 
 The device panel is live: scalar values arrive by Tango events while the panel
 is on screen and stop when it is hidden. A spectrum or image is watched only
@@ -85,13 +90,17 @@ subscription to each Starter's `Servers` attribute carries the whole server
 table for that host. Starting a server is one click; stopping, restarting and
 killing ask first, and a hard kill wants the host name typed back.
 
+Servers, devices and controlled hosts are created from the navigator's context
+menu or `Ctrl+N`, and removed the same way — every one of those is a command
+with a preview and an undo.
+
 ## Development
 
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -e '.[dev,gui]'
 
-.venv/bin/pytest          # 244 tests, no control system needed
+.venv/bin/pytest          # 277 tests, no control system needed
 .venv/bin/mypy milonga tests
 .venv/bin/ruff check .
 ```

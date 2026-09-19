@@ -17,7 +17,7 @@ from milonga.core.commands import (
     config_values,
 )
 from milonga.core.commands.base import Command, Diff
-from milonga.core.errors import ReadOnlyError
+from milonga.core.errors import ReadOnlyError, TangoError
 from milonga.core.model import AlarmConfig, AttributeSpec, PropertyEntry
 from milonga.core.names import DeviceName
 
@@ -258,3 +258,166 @@ async def test_moving_a_server_updates_both_starters(
     await runner.run([command])
     assert (await backend.get_server_info(server)).host == "id09-srv-01"
     assert backend.call_log.count("execute_command") == 2
+
+
+# ------------------------------------------------------------ creating and removing
+
+
+async def test_creating_a_device_and_undoing_it(
+    runner: CommandRunner, backend: FakeBackend
+) -> None:
+    from milonga.core.commands import CreateDevice
+    from milonga.core.model import DeviceRegistration
+    from milonga.core.names import ServerName
+
+    device = DeviceName.parse("id09/motor/chi")
+    command = CreateDevice(DeviceRegistration(device, "IcePAPMotor", ServerName("IcePAP", "id09")))
+    diff = await runner.run([command])
+    assert diff.changes[0].kind is DiffKind.ADDED
+    assert device in await backend.get_device_list()
+    await runner.undo(command)
+    assert device not in await backend.get_device_list()
+
+
+async def test_creating_a_device_that_exists_is_refused(runner: CommandRunner) -> None:
+    from milonga.core.commands import CreateDevice
+    from milonga.core.model import DeviceRegistration
+    from milonga.core.names import ServerName
+
+    command = CreateDevice(
+        DeviceRegistration(DEVICE, "TangoTest", ServerName("TangoTest", "test"))
+    )
+    with pytest.raises(TangoError, match="already exists"):
+        await runner.preview([command])
+
+
+async def test_deleting_a_device_keeps_enough_to_put_it_back(
+    runner: CommandRunner, backend: FakeBackend, gateway: PropertyGateway
+) -> None:
+    from milonga.core.commands import DeleteDevice
+
+    device = DeviceName.parse("id09/motor/phi")
+    command = DeleteDevice(device)
+    assert command.destructive
+    assert command.confirmation_name == "id09/motor/phi"
+    diff = await runner.run([command])
+    assert {line.name for line in diff.changes} >= {"device", "Velocity", "alias"}
+    assert device not in await backend.get_device_list()
+
+    await runner.undo(command)
+    assert device in await backend.get_device_list()
+    assert await _values(gateway, MOTOR, "Velocity") == ("2.5",)
+    assert await backend.get_alias_from_device(device) == "phi"
+
+
+async def test_renaming_a_device(runner: CommandRunner, backend: FakeBackend) -> None:
+    from milonga.core.commands import RenameDevice
+
+    old = DeviceName.parse("id09/motor/phi")
+    new = DeviceName.parse("id09/motor/phi2")
+    command = RenameDevice(old, new)
+    await runner.run([command])
+    assert new in await backend.get_device_list()
+    await runner.undo(command)
+    assert old in await backend.get_device_list()
+
+
+async def test_setting_and_dropping_an_alias(
+    runner: CommandRunner, backend: FakeBackend
+) -> None:
+    from milonga.core.commands import SetDeviceAlias
+
+    device = DeviceName.parse("id09/vac/gauge-1")
+    command = SetDeviceAlias(device, "gauge")
+    await runner.run([command])
+    assert await backend.get_alias_from_device(device) == "gauge"
+    await runner.undo(command)
+    assert await backend.get_alias_from_device(device) is None
+
+    drop = SetDeviceAlias(DeviceName.parse("id09/motor/phi"), "")
+    await runner.run([drop])
+    assert await backend.get_alias_from_device(DeviceName.parse("id09/motor/phi")) is None
+    await runner.undo(drop)
+    assert await backend.get_alias_from_device(DeviceName.parse("id09/motor/phi")) == "phi"
+
+
+async def test_creating_a_server_registers_its_devices_and_level(
+    runner: CommandRunner, backend: FakeBackend
+) -> None:
+    from milonga.core.commands import CreateServer
+    from milonga.core.model import DeviceRegistration
+    from milonga.core.names import ServerName
+
+    server = ServerName("Vacuum", "id09-back")
+    device = DeviceName.parse("id09/vac/gauge-2")
+    command = CreateServer(
+        server,
+        (DeviceRegistration(device, "VacuumGauge", server),),
+        host="id09-srv-02",
+        level=3,
+    )
+    await runner.run([command])
+    info = await backend.get_server_info(server)
+    assert info.host == "id09-srv-02" and info.level == 3 and info.controlled
+    assert device in await backend.get_device_list_for_server(server)
+    await runner.undo(command)
+    assert server not in await backend.get_server_list()
+
+
+async def test_deleting_a_server_can_be_undone(
+    runner: CommandRunner, backend: FakeBackend
+) -> None:
+    from milonga.core.commands import DeleteServer
+    from milonga.core.names import ServerName
+
+    server = ServerName("IcePAP", "id09")
+    command = DeleteServer(server)
+    diff = await runner.run([command])
+    assert len(diff.changes) == 4
+    assert server not in await backend.get_server_list()
+    await runner.undo(command)
+    assert server in await backend.get_server_list()
+    assert len(await backend.get_device_list_for_server(server)) == 3
+    assert (await backend.get_server_info(server)).level == 2
+
+
+async def test_renaming_a_server_moves_its_devices(
+    runner: CommandRunner, backend: FakeBackend
+) -> None:
+    from milonga.core.commands import RenameServer
+    from milonga.core.names import ServerName
+
+    old = ServerName("TangoTest", "test")
+    new = ServerName("TangoTest", "prod")
+    command = RenameServer(old, new)
+    await runner.run([command])
+    assert DEVICE in await backend.get_device_list_for_server(new)
+    await runner.undo(command)
+    assert DEVICE in await backend.get_device_list_for_server(old)
+
+
+# ------------------------------------------------------------------------ polling
+
+
+async def test_polling_can_be_set_changed_and_stopped(
+    runner: CommandRunner, backend: FakeBackend
+) -> None:
+    from milonga.core.commands import SetPolling
+
+    device = DeviceName.parse("id09/motor/phi")
+    start = SetPolling(device, "position", period_ms=200)
+    diff = await runner.run([start])
+    assert diff.changes[0].kind is DiffKind.ADDED
+    assert (await backend.get_polling(device))[0].period_ms == 200
+
+    faster = SetPolling(device, "position", period_ms=100)
+    await runner.run([faster])
+    assert (await backend.get_polling(device))[0].period_ms == 100
+    await runner.undo(faster)
+    assert (await backend.get_polling(device))[0].period_ms == 200
+
+    stop = SetPolling(device, "position", period_ms=0)
+    await runner.run([stop])
+    assert await backend.get_polling(device) == ()
+    await runner.undo(stop)
+    assert (await backend.get_polling(device))[0].period_ms == 200

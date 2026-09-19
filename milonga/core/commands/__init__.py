@@ -9,6 +9,13 @@ from milonga.core.commands.base import (
     DiffLine,
     RevertUnsupported,
 )
+from milonga.core.commands.devices import (
+    CreateDevice,
+    DeleteDevice,
+    RenameDevice,
+    SetDeviceAlias,
+)
+from milonga.core.commands.polling import SetPolling
 from milonga.core.commands.properties import (
     CopyProperties,
     DeleteProperties,
@@ -17,23 +24,36 @@ from milonga.core.commands.properties import (
     PutProperties,
     RenameProperty,
 )
-from milonga.core.commands.servers import SetServerControl
+from milonga.core.commands.servers import (
+    CreateServer,
+    DeleteServer,
+    RenameServer,
+    SetServerControl,
+)
 
 __all__ = [
     "CONFIG_FIELDS",
     "Command",
     "CommandRunner",
     "CopyProperties",
+    "CreateDevice",
+    "CreateServer",
+    "DeleteDevice",
     "DeleteProperties",
+    "DeleteServer",
     "Diff",
     "DiffKind",
     "DiffLine",
     "PropertyGateway",
     "PropertyTarget",
     "PutProperties",
+    "RenameDevice",
     "RenameProperty",
+    "RenameServer",
     "RevertUnsupported",
     "SetAttributeConfig",
+    "SetDeviceAlias",
+    "SetPolling",
     "SetServerControl",
     "config_values",
 ]
