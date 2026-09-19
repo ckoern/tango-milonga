@@ -1,0 +1,741 @@
+<title>Milonga Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --ink:#15131d; --ink-2:#403b51; --ink-3:#6f6a80;
+  --ground:#f4f3f8; --panel:#ffffff; --panel-2:#edebf3; --panel-3:#e4e1ed;
+  --line:#dcd8e8; --line-2:#c5bfd6;
+  --accent:#6141d2; --accent-soft:#ebe6fb; --accent-ink:#ffffff;
+  --ok:#158054; --ok-soft:#dff0e7;
+  --busy:#0c7f9e; --busy-soft:#daeef4;
+  --warn:#a76c07; --warn-soft:#f8eed6;
+  --bad:#c33d30; --bad-soft:#fae4e1;
+  --idle:#857f96; --idle-soft:#e9e7ef;
+  --shadow:0 1px 2px rgba(21,19,29,.05), 0 10px 30px -18px rgba(21,19,29,.45);
+  --radius:7px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#e9e7f2; --ink-2:#b5b0c6; --ink-3:#847e97;
+    --ground:#0d0c12; --panel:#17161f; --panel-2:#1f1d2a; --panel-3:#272434;
+    --line:#2b2839; --line-2:#3c3850;
+    --accent:#a78fff; --accent-soft:#282040; --accent-ink:#14101f;
+    --ok:#46c186; --ok-soft:#14301f;
+    --busy:#3cb6d6; --busy-soft:#0d2a33;
+    --warn:#d6a02f; --warn-soft:#332608;
+    --bad:#ef6a5b; --bad-soft:#371814;
+    --idle:#8d879f; --idle-soft:#242232;
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 14px 34px -20px rgba(0,0,0,.9);
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#e9e7f2; --ink-2:#b5b0c6; --ink-3:#847e97;
+  --ground:#0d0c12; --panel:#17161f; --panel-2:#1f1d2a; --panel-3:#272434;
+  --line:#2b2839; --line-2:#3c3850;
+  --accent:#a78fff; --accent-soft:#282040; --accent-ink:#14101f;
+  --ok:#46c186; --ok-soft:#14301f;
+  --busy:#3cb6d6; --busy-soft:#0d2a33;
+  --warn:#d6a02f; --warn-soft:#332608;
+  --bad:#ef6a5b; --bad-soft:#371814;
+  --idle:#8d879f; --idle-soft:#242232;
+  --shadow:0 1px 2px rgba(0,0,0,.5), 0 14px 34px -20px rgba(0,0,0,.9);
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  font-size:14px; line-height:1.5;
+  padding-inline:20px; padding-block:28px 48px;
+}
+.wrap{max-width:1240px; margin:0 auto; display:flex; flex-direction:column; gap:20px}
+a{color:var(--accent)}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+.eyebrow{
+  font-family:"IBM Plex Sans Condensed","IBM Plex Sans",sans-serif;
+  text-transform:uppercase; letter-spacing:.12em; font-size:11px; font-weight:600; color:var(--ink-3);
+}
+h1{font-size:26px; line-height:1.2; margin:6px 0 0; font-weight:600; letter-spacing:-.01em; text-wrap:balance}
+.lede{margin:8px 0 0; color:var(--ink-2); max-width:66ch}
+.pagehead{display:flex; flex-wrap:wrap; gap:18px 32px; align-items:flex-end; justify-content:space-between}
+.legend{display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center}
+.legend span{display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-2)}
+
+/* ---- state chips ---- */
+.dot{width:9px; height:9px; border-radius:50%; display:inline-block; flex:0 0 auto}
+.dot.ok{background:var(--ok)} .dot.busy{background:var(--busy)}
+.dot.warn{background:var(--warn)} .dot.bad{background:var(--bad)}
+.dot.idle{background:var(--idle); box-shadow:inset 0 0 0 1px var(--line-2)}
+.chip{
+  display:inline-flex; align-items:center; gap:6px; padding:1px 8px 1px 6px; border-radius:20px;
+  font-size:11.5px; font-weight:600; letter-spacing:.02em; white-space:nowrap;
+  font-family:"IBM Plex Mono",monospace;
+}
+.chip.ok{background:var(--ok-soft); color:var(--ok)}
+.chip.busy{background:var(--busy-soft); color:var(--busy)}
+.chip.warn{background:var(--warn-soft); color:var(--warn)}
+.chip.bad{background:var(--bad-soft); color:var(--bad)}
+.chip.idle{background:var(--idle-soft); color:var(--ink-3)}
+
+/* ---- app frame ---- */
+.app{
+  background:var(--panel); border:1px solid var(--line); border-radius:11px;
+  box-shadow:var(--shadow); overflow:hidden; display:flex; flex-direction:column;
+}
+.titlebar{
+  display:flex; align-items:center; gap:10px; padding:9px 12px;
+  background:var(--panel-2); border-bottom:1px solid var(--line);
+}
+.lights{display:flex; gap:6px; margin-right:4px}
+.lights i{width:10px; height:10px; border-radius:50%; background:var(--line-2); display:block}
+.apptitle{font-size:12.5px; color:var(--ink-3); font-weight:500}
+.apptitle b{color:var(--ink-2); font-weight:600}
+.toolbar{
+  display:flex; align-items:center; gap:10px; padding:8px 12px; flex-wrap:wrap;
+  border-bottom:1px solid var(--line); background:var(--panel);
+}
+.cs-picker{
+  display:inline-flex; align-items:center; gap:7px; padding:4px 9px; border:1px solid var(--line);
+  border-radius:var(--radius); background:var(--panel-2); font-size:12.5px; font-family:"IBM Plex Mono",monospace;
+}
+.search{
+  flex:1 1 220px; min-width:0; display:flex; align-items:center; gap:8px; padding:5px 10px;
+  border:1px solid var(--line); border-radius:var(--radius); background:var(--panel-2); color:var(--ink-3); font-size:12.5px;
+}
+.search kbd{
+  margin-left:auto; font-family:"IBM Plex Mono",monospace; font-size:10.5px; border:1px solid var(--line-2);
+  border-bottom-width:2px; border-radius:4px; padding:0 5px; color:var(--ink-3);
+}
+.btn{
+  font:inherit; font-size:12.5px; padding:4px 10px; border-radius:var(--radius);
+  border:1px solid var(--line); background:var(--panel); color:var(--ink-2); cursor:pointer;
+}
+.btn:hover{background:var(--panel-2); color:var(--ink)}
+.btn.primary{background:var(--accent); border-color:var(--accent); color:var(--accent-ink); font-weight:600}
+.btn.danger{color:var(--bad); border-color:var(--bad-soft); background:var(--bad-soft)}
+.btn.ro{color:var(--warn); background:var(--warn-soft); border-color:transparent; font-weight:600}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+.body{display:grid; grid-template-columns:224px minmax(0,1fr) 250px; min-height:0}
+.nav{border-right:1px solid var(--line); background:var(--panel-2); padding:10px 8px; display:flex; flex-direction:column; gap:10px; overflow:auto}
+.scope{display:flex; gap:2px; background:var(--panel-3); padding:2px; border-radius:var(--radius)}
+.scope button{
+  flex:1; font:inherit; font-size:11.5px; padding:3px 4px; border:0; border-radius:5px;
+  background:transparent; color:var(--ink-3); cursor:pointer;
+}
+.scope button[aria-pressed="true"]{background:var(--panel); color:var(--ink); font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.filter{
+  display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-3);
+  border:1px solid var(--line); border-radius:var(--radius); padding:4px 8px; background:var(--panel);
+}
+.tree{display:flex; flex-direction:column; gap:1px; font-size:12.5px}
+.grp{padding:8px 6px 2px; font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); font-family:"IBM Plex Sans Condensed",sans-serif; font-weight:600}
+.node{
+  display:flex; align-items:center; gap:7px; padding:4px 7px; border-radius:5px; cursor:pointer;
+  color:var(--ink-2); border:0; background:transparent; font:inherit; font-size:12.5px; text-align:left; width:100%;
+}
+.node:hover{background:var(--panel-3); color:var(--ink)}
+.node[aria-current="true"]{background:var(--accent-soft); color:var(--accent); font-weight:600}
+.node .mono{font-size:12px}
+.node .count{margin-left:auto; font-size:10.5px; color:var(--ink-3); font-family:"IBM Plex Mono",monospace}
+
+.doc{display:flex; flex-direction:column; min-width:0; background:var(--ground)}
+.tabs{display:flex; gap:0; border-bottom:1px solid var(--line); background:var(--panel-2); overflow-x:auto}
+.tab{
+  font:inherit; font-size:12.5px; padding:8px 14px; border:0; border-right:1px solid var(--line);
+  background:transparent; color:var(--ink-3); cursor:pointer; white-space:nowrap;
+  display:flex; align-items:center; gap:7px;
+}
+.tab[aria-selected="true"]{background:var(--ground); color:var(--ink); font-weight:600; box-shadow:inset 0 2px 0 var(--accent)}
+.screen{padding:14px; display:none; flex-direction:column; gap:14px; overflow:auto; height:470px}
+.screen[data-active="true"]{display:flex}
+.screen::-webkit-scrollbar,.nav::-webkit-scrollbar,.inspector::-webkit-scrollbar{width:9px;height:9px}
+.screen::-webkit-scrollbar-thumb,.nav::-webkit-scrollbar-thumb,.inspector::-webkit-scrollbar-thumb{background:var(--line-2); border-radius:9px}
+
+.bar{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+.bar .spacer{flex:1}
+.stat{display:flex; align-items:baseline; gap:6px; font-size:12.5px; color:var(--ink-3)}
+.stat b{font-size:15px; color:var(--ink); font-family:"IBM Plex Mono",monospace; font-weight:600; font-variant-numeric:tabular-nums}
+
+/* ---- host cards ---- */
+.cards{display:grid; grid-template-columns:repeat(auto-fill,minmax(232px,1fr)); gap:10px}
+.card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:10px 11px; display:flex; flex-direction:column; gap:8px}
+.card.alert{border-color:var(--bad); box-shadow:inset 3px 0 0 var(--bad)}
+.card h3{margin:0; font-size:13.5px; font-family:"IBM Plex Mono",monospace; font-weight:600; display:flex; align-items:center; gap:7px}
+.card .sub{font-size:11.5px; color:var(--ink-3)}
+.strip{display:flex; gap:2px; flex-wrap:wrap}
+.strip i{width:8px; height:14px; border-radius:2px; display:block}
+.strip i.ok{background:var(--ok)} .strip i.bad{background:var(--bad)}
+.strip i.busy{background:var(--busy)} .strip i.idle{background:var(--idle-soft); box-shadow:inset 0 0 0 1px var(--line-2)}
+.card footer{display:flex; justify-content:space-between; font-size:11px; color:var(--ink-3); font-family:"IBM Plex Mono",monospace}
+
+/* ---- tables ---- */
+.tbl-wrap{overflow-x:auto; border:1px solid var(--line); border-radius:var(--radius); background:var(--panel)}
+table{border-collapse:collapse; width:100%; font-size:12.5px}
+th{
+  text-align:left; font-family:"IBM Plex Sans Condensed",sans-serif; text-transform:uppercase;
+  letter-spacing:.08em; font-size:10.5px; color:var(--ink-3); font-weight:600;
+  padding:7px 10px; border-bottom:1px solid var(--line); background:var(--panel-2); white-space:nowrap;
+}
+td{padding:6px 10px; border-bottom:1px solid var(--line); vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tr.sel td{background:var(--accent-soft)}
+td.num{font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums; text-align:right}
+td.name{font-family:"IBM Plex Mono",monospace}
+.lane{display:flex; flex-direction:column; gap:6px}
+.lane-hd{display:flex; align-items:center; gap:8px; font-size:11px; color:var(--ink-3); font-family:"IBM Plex Sans Condensed",sans-serif; text-transform:uppercase; letter-spacing:.1em; font-weight:600}
+.lane-hd::after{content:""; flex:1; height:1px; background:var(--line)}
+.rowbtns{display:flex; gap:4px; justify-content:flex-end}
+.rowbtns .btn{padding:2px 7px; font-size:11.5px}
+
+.term{
+  background:var(--panel-3); border:1px solid var(--line); border-radius:var(--radius);
+  padding:9px 11px; font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--ink-2);
+  white-space:pre; overflow-x:auto; line-height:1.65;
+}
+.term .t{color:var(--ink-3)} .term .g{color:var(--ok)} .term .r{color:var(--bad)} .term .y{color:var(--warn)}
+
+.panel-box{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:11px 12px; display:flex; flex-direction:column; gap:9px}
+.panel-box h4{margin:0; font-size:12px; font-family:"IBM Plex Sans Condensed",sans-serif; text-transform:uppercase; letter-spacing:.09em; color:var(--ink-3); font-weight:600}
+.subtabs{display:flex; gap:3px; flex-wrap:wrap}
+.subtab{font:inherit; font-size:12px; padding:3px 9px; border-radius:20px; border:1px solid transparent; background:transparent; color:var(--ink-3); cursor:pointer}
+.subtab[aria-pressed="true"]{background:var(--panel-3); color:var(--ink); border-color:var(--line); font-weight:600}
+.devhead{display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:10px 12px; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius)}
+.devhead .nm{font-family:"IBM Plex Mono",monospace; font-size:15px; font-weight:600}
+.write{display:flex; gap:4px; justify-content:flex-end}
+.write input{
+  font:inherit; font-family:"IBM Plex Mono",monospace; font-size:12px; width:86px; text-align:right;
+  padding:2px 6px; border:1px solid var(--line-2); border-radius:5px; background:var(--panel-2); color:var(--ink);
+}
+.qual{font-size:10.5px; font-family:"IBM Plex Mono",monospace; color:var(--ink-3)}
+.pulled{border-bottom:1px dotted var(--ink-3)}
+.plot-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:10px}
+.figure{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:10px; display:flex; flex-direction:column; gap:7px}
+.figure header{display:flex; align-items:center; gap:8px; font-size:12px}
+.figure header .mono{font-weight:600}
+.figure header .meta{margin-left:auto; font-size:11px; color:var(--ink-3); font-family:"IBM Plex Mono",monospace}
+.figure svg, .figure canvas{width:100%; height:auto; display:block; border-radius:4px}
+
+.diff{font-family:"IBM Plex Mono",monospace; font-size:12px; display:flex; flex-direction:column; gap:2px}
+.diff div{padding:2px 8px; border-radius:4px}
+.diff .rm{background:var(--bad-soft); color:var(--bad)}
+.diff .add{background:var(--ok-soft); color:var(--ok)}
+.hist{display:flex; flex-direction:column; gap:0; font-size:12px}
+.hist li{display:flex; gap:10px; padding:5px 0 5px 14px; border-left:2px solid var(--line); position:relative; list-style:none}
+.hist li::before{content:""; position:absolute; left:-5px; top:11px; width:8px; height:8px; border-radius:50%; background:var(--line-2)}
+.hist li:first-child::before{background:var(--accent)}
+.hist time{font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-3); flex:0 0 96px}
+.hist ul{margin:0; padding:0}
+
+.inspector{border-left:1px solid var(--line); background:var(--panel-2); padding:12px; display:flex; flex-direction:column; gap:12px; overflow:auto}
+.insp-block{display:none; flex-direction:column; gap:12px}
+.insp-block[data-active="true"]{display:flex}
+.kv{display:grid; grid-template-columns:auto 1fr; gap:4px 10px; font-size:12px}
+.kv dt{color:var(--ink-3)}
+.kv dd{margin:0; font-family:"IBM Plex Mono",monospace; overflow-wrap:anywhere}
+.actions{display:flex; flex-direction:column; gap:5px}
+.actions .btn{text-align:left}
+
+.journal{border-top:1px solid var(--line); background:var(--panel); display:flex; flex-direction:column}
+.jtabs{display:flex; gap:14px; padding:6px 12px; border-bottom:1px solid var(--line); font-size:11px; font-family:"IBM Plex Sans Condensed",sans-serif; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-3); font-weight:600}
+.jtabs span[aria-current="true"]{color:var(--ink); box-shadow:0 8px 0 -6px var(--accent)}
+.jrow{display:flex; gap:12px; align-items:center; padding:5px 12px; font-size:12px; border-bottom:1px solid var(--line)}
+.jrow:last-child{border-bottom:0}
+.jrow time{font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-3)}
+.jrow .what{font-family:"IBM Plex Mono",monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.jrow .btn{margin-left:auto; padding:1px 8px; font-size:11px}
+.statusbar{
+  display:flex; gap:16px; flex-wrap:wrap; padding:5px 12px; background:var(--panel-2); border-top:1px solid var(--line);
+  font-size:11.5px; color:var(--ink-3); font-family:"IBM Plex Mono",monospace;
+}
+.statusbar .spacer{flex:1}
+
+.notes{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px}
+.note{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:12px 13px; display:flex; flex-direction:column; gap:5px}
+.note h4{margin:0; font-size:13px; font-weight:600}
+.note p{margin:0; font-size:12.5px; color:var(--ink-2)}
+.note .eyebrow{color:var(--accent)}
+
+@media (max-width:900px){
+  .body{grid-template-columns:minmax(0,1fr)}
+  .nav,.inspector{display:none}
+  .screen{height:auto; max-height:none}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="pagehead">
+    <div>
+      <p class="eyebrow">GUI mockup &middot; Astor + Jive replacement</p>
+      <h1>Milonga Console</h1>
+      <p class="lede">One window for the whole control system: Starter-based process control, full database editing, and a generic device panel. Switch documents with the tabs &mdash; the data shown is an example beamline, not a live system.</p>
+    </div>
+    <div class="legend" aria-label="State colour legend">
+      <span><i class="dot ok"></i>running / ON</span>
+      <span><i class="dot busy"></i>starting / MOVING</span>
+      <span><i class="dot warn"></i>mixed / ALARM</span>
+      <span><i class="dot bad"></i>stopped / FAULT</span>
+      <span><i class="dot idle"></i>unknown / not controlled</span>
+    </div>
+  </header>
+
+  <div class="app">
+    <div class="titlebar">
+      <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="apptitle"><b>Milonga</b> &mdash; ID09 control system</div>
+    </div>
+
+    <div class="toolbar">
+      <span class="cs-picker"><i class="dot ok"></i>tango-cs.id09:10000 &#9662;</span>
+      <span class="search">&#9906; Search devices, servers, classes, hosts&hellip;<kbd>Ctrl K</kbd></span>
+      <button class="btn">&#8635; Refresh</button>
+      <button class="btn ro">&#128274; Read-only</button>
+      <button class="btn" id="theme">&#9681; Theme</button>
+    </div>
+
+    <div class="body">
+      <!-- NAVIGATOR -->
+      <nav class="nav" aria-label="Navigator">
+        <div class="scope" role="group" aria-label="Navigator scope">
+          <button aria-pressed="true">Hosts</button>
+          <button aria-pressed="false">Servers</button>
+          <button aria-pressed="false">Devices</button>
+          <button aria-pressed="false">Classes</button>
+        </div>
+        <div class="filter">&#9906; <span>filter&hellip;</span></div>
+        <div class="tree">
+          <div class="grp">Beamline</div>
+          <button class="node" data-screen="overview"><i class="dot ok"></i><span class="mono">id09-srv-01</span><span class="count">14</span></button>
+          <button class="node" data-screen="host" aria-current="true"><i class="dot warn"></i><span class="mono">id09-srv-02</span><span class="count">11</span></button>
+          <button class="node" data-screen="overview"><i class="dot ok"></i><span class="mono">id09-det-01</span><span class="count">6</span></button>
+          <button class="node" data-screen="overview"><i class="dot bad"></i><span class="mono">id09-vac-01</span><span class="count">4</span></button>
+          <div class="grp">Accelerator</div>
+          <button class="node" data-screen="overview"><i class="dot ok"></i><span class="mono">sr-ctl-01</span><span class="count">21</span></button>
+          <button class="node" data-screen="overview"><i class="dot busy"></i><span class="mono">sr-ctl-02</span><span class="count">18</span></button>
+          <div class="grp">Devices on id09-srv-02</div>
+          <button class="node" data-screen="device"><i class="dot ok"></i><span class="mono">sys/tg_test/1</span></button>
+          <button class="node" data-screen="properties"><i class="dot ok"></i><span class="mono">id09/motor/phi</span></button>
+          <button class="node" data-screen="device"><i class="dot warn"></i><span class="mono">id09/vac/gauge-1</span></button>
+        </div>
+      </nav>
+
+      <!-- DOCUMENT AREA -->
+      <main class="doc">
+        <div class="tabs" role="tablist">
+          <button class="tab" role="tab" data-screen="overview" aria-selected="false"><i class="dot warn"></i>System</button>
+          <button class="tab" role="tab" data-screen="host" aria-selected="true"><i class="dot warn"></i>id09-srv-02</button>
+          <button class="tab" role="tab" data-screen="device" aria-selected="false"><i class="dot ok"></i>sys/tg_test/1</button>
+          <button class="tab" role="tab" data-screen="properties" aria-selected="false"><i class="dot idle"></i>Properties: id09/motor/phi</button>
+        </div>
+
+        <!-- 1. SYSTEM OVERVIEW -->
+        <section class="screen" data-screen="overview" role="tabpanel" aria-label="System overview">
+          <div class="bar">
+            <span class="stat"><b>6</b> hosts</span>
+            <span class="stat"><b>74</b> servers running</span>
+            <span class="stat"><b>5</b> stopped</span>
+            <span class="stat"><b>1</b> Starter unreachable</span>
+            <span class="spacer"></span>
+            <button class="btn">Cards / Table</button>
+            <button class="btn">Start level&hellip;</button>
+            <button class="btn primary">Add host&hellip;</button>
+          </div>
+          <div class="cards">
+            <article class="card">
+              <h3><i class="dot ok"></i>id09-srv-01</h3>
+              <div class="sub">Beamline &middot; Starter 3.10 &middot; up 41 d</div>
+              <div class="strip" aria-label="14 servers, all running"><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i></div>
+              <footer><span>14 running</span><span>levels 1&ndash;4</span></footer>
+            </article>
+            <article class="card">
+              <h3><i class="dot warn"></i>id09-srv-02</h3>
+              <div class="sub">Beamline &middot; Starter 3.10 &middot; up 6 d</div>
+              <div class="strip" aria-label="9 running, 1 starting, 1 stopped"><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="busy"></i><i class="bad"></i></div>
+              <footer><span>9 running &middot; 1 stopped</span><span>levels 1&ndash;3</span></footer>
+            </article>
+            <article class="card">
+              <h3><i class="dot ok"></i>id09-det-01</h3>
+              <div class="sub">Beamline &middot; Starter 3.10 &middot; up 12 d</div>
+              <div class="strip" aria-label="6 servers, all running"><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i></div>
+              <footer><span>6 running</span><span>levels 1&ndash;2</span></footer>
+            </article>
+            <article class="card alert">
+              <h3><i class="dot bad"></i>id09-vac-01</h3>
+              <div class="sub">Beamline &middot; <span style="color:var(--bad)">Starter not answering</span></div>
+              <div class="strip" aria-label="4 servers, state unknown"><i class="idle"></i><i class="idle"></i><i class="idle"></i><i class="idle"></i></div>
+              <footer><span>last seen 12:41:08</span><span>ping timeout</span></footer>
+            </article>
+            <article class="card">
+              <h3><i class="dot ok"></i>sr-ctl-01</h3>
+              <div class="sub">Accelerator &middot; Starter 3.10 &middot; up 88 d</div>
+              <div class="strip" aria-label="21 servers, all running"><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i></div>
+              <footer><span>21 running</span><span>levels 1&ndash;5</span></footer>
+            </article>
+            <article class="card">
+              <h3><i class="dot busy"></i>sr-ctl-02</h3>
+              <div class="sub">Accelerator &middot; starting level 3 of 5</div>
+              <div class="strip" aria-label="14 running, 4 starting"><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="busy"></i><i class="busy"></i><i class="busy"></i><i class="busy"></i></div>
+              <footer><span>14 running &middot; 4 starting</span><span>levels 1&ndash;5</span></footer>
+            </article>
+          </div>
+        </section>
+
+        <!-- 2. HOST PANEL -->
+        <section class="screen" data-screen="host" data-active="true" role="tabpanel" aria-label="Host id09-srv-02">
+          <div class="bar">
+            <span class="stat"><b>11</b> controlled servers</span>
+            <span class="stat"><b>3</b> startup levels</span>
+            <span class="spacer"></span>
+            <button class="btn">Show uncontrolled (4)</button>
+            <button class="btn">Stop all</button>
+            <button class="btn primary">Start all levels</button>
+          </div>
+
+          <div class="lane">
+            <div class="lane-hd">Level 1 &mdash; infrastructure</div>
+            <div class="tbl-wrap">
+              <table>
+                <thead><tr><th>Server</th><th>Class</th><th>State</th><th>PID</th><th>Uptime</th><th>Tango</th><th></th></tr></thead>
+                <tbody>
+                  <tr><td class="name">Databaseds/2</td><td>DataBase</td><td><span class="chip ok"><i class="dot ok"></i>RUNNING</span></td><td class="num">1187</td><td class="num">6 d</td><td class="num">9.3.5</td>
+                    <td><div class="rowbtns"><button class="btn">Stop</button><button class="btn">Restart</button><button class="btn">Log</button></div></td></tr>
+                  <tr><td class="name">TangoAccessControl/1</td><td>TangoAccessControl</td><td><span class="chip ok"><i class="dot ok"></i>RUNNING</span></td><td class="num">1204</td><td class="num">6 d</td><td class="num">9.3.5</td>
+                    <td><div class="rowbtns"><button class="btn">Stop</button><button class="btn">Restart</button><button class="btn">Log</button></div></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="lane">
+            <div class="lane-hd">Level 2 &mdash; hardware</div>
+            <div class="tbl-wrap">
+              <table>
+                <thead><tr><th>Server</th><th>Class</th><th>State</th><th>PID</th><th>Uptime</th><th>Tango</th><th></th></tr></thead>
+                <tbody>
+                  <tr><td class="name">IcePAP/id09</td><td>IcePAPController</td><td><span class="chip ok"><i class="dot ok"></i>RUNNING</span></td><td class="num">2318</td><td class="num">6 d</td><td class="num">9.3.4</td>
+                    <td><div class="rowbtns"><button class="btn">Stop</button><button class="btn">Restart</button><button class="btn">Log</button></div></td></tr>
+                  <tr class="sel"><td class="name">Vacuum/id09-front</td><td>VacuumController</td><td><span class="chip bad"><i class="dot bad"></i>STOPPED</span></td><td class="num">&mdash;</td><td class="num">&mdash;</td><td class="num">9.3.4</td>
+                    <td><div class="rowbtns"><button class="btn primary">Start</button><button class="btn">Log</button></div></td></tr>
+                  <tr><td class="name">LimaCCDs/pilatus</td><td>LimaCCDs</td><td><span class="chip busy"><i class="dot busy"></i>STARTING</span></td><td class="num">9942</td><td class="num">4 s</td><td class="num">9.3.5</td>
+                    <td><div class="rowbtns"><button class="btn">Stop</button><button class="btn">Log</button></div></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="lane">
+            <div class="lane-hd">Level 3 &mdash; applications</div>
+            <div class="tbl-wrap">
+              <table>
+                <thead><tr><th>Server</th><th>Class</th><th>State</th><th>PID</th><th>Uptime</th><th>Tango</th><th></th></tr></thead>
+                <tbody>
+                  <tr><td class="name">PyAlarm/id09</td><td>PyAlarm</td><td><span class="chip ok"><i class="dot ok"></i>RUNNING</span></td><td class="num">2740</td><td class="num">6 d</td><td class="num">9.3.5</td>
+                    <td><div class="rowbtns"><button class="btn">Stop</button><button class="btn">Restart</button><button class="btn">Log</button></div></td></tr>
+                  <tr><td class="name">TangoTest/test</td><td>TangoTest</td><td><span class="chip ok"><i class="dot ok"></i>RUNNING</span></td><td class="num">2755</td><td class="num">6 d</td><td class="num">9.3.5</td>
+                    <td><div class="rowbtns"><button class="btn">Stop</button><button class="btn">Restart</button><button class="btn">Log</button></div></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel-box">
+            <h4>Starter log &mdash; Vacuum/id09-front</h4>
+            <div class="term"><span class="t">12:41:02</span>  starting Vacuum/id09-front (level 2, attempt 1)
+<span class="t">12:41:05</span>  <span class="r">failed</span>  serial port /dev/ttyR03: device or resource busy
+<span class="t">12:41:05</span>  process exited with code 1
+<span class="t">12:41:35</span>  <span class="y">auto-restart window expires in 24 min</span></div>
+          </div>
+        </section>
+
+        <!-- 3. DEVICE PANEL -->
+        <section class="screen" data-screen="device" role="tabpanel" aria-label="Device sys/tg_test/1">
+          <div class="devhead">
+            <span class="nm">sys/tg_test/1</span>
+            <span class="chip ok"><i class="dot ok"></i>ON</span>
+            <span style="font-size:12px;color:var(--ink-2)">&ldquo;Device is in ON state.&rdquo;</span>
+            <span class="spacer" style="flex:1"></span>
+            <span class="qual">events &middot; 34 ms since last update</span>
+            <button class="btn">&#9208; Pause</button>
+          </div>
+          <div class="subtabs">
+            <button class="subtab" aria-pressed="true">Attributes</button>
+            <button class="subtab" aria-pressed="false">Commands</button>
+            <button class="subtab" aria-pressed="false">Properties</button>
+            <button class="subtab" aria-pressed="false">Config</button>
+            <button class="subtab" aria-pressed="false">Polling</button>
+            <button class="subtab" aria-pressed="false">Events</button>
+            <button class="subtab" aria-pressed="false">Logs</button>
+            <button class="subtab" aria-pressed="false">Info</button>
+          </div>
+
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>Attribute</th><th>Value</th><th>Unit</th><th>Quality</th><th>Updated</th><th>Set point</th></tr></thead>
+              <tbody>
+                <tr><td class="name">double_scalar</td><td class="num">12.8741</td><td>mm</td><td><span class="chip ok">VALID</span></td><td class="num">12:44:07.412</td>
+                  <td><div class="write"><input id="w-double" value="12.8741" aria-label="double_scalar set point"><button class="btn">Write</button></div></td></tr>
+                <tr><td class="name">long_scalar</td><td class="num">143</td><td>counts</td><td><span class="chip ok">VALID</span></td><td class="num">12:44:07.412</td>
+                  <td><div class="write"><input id="w-long" value="143" aria-label="long_scalar set point"><button class="btn">Write</button></div></td></tr>
+                <tr><td class="name">boolean_scalar</td><td><span class="chip ok">true</span></td><td>&mdash;</td><td><span class="chip ok">VALID</span></td><td class="num">12:44:07.412</td>
+                  <td><div class="write"><button class="btn">Toggle</button></div></td></tr>
+                <tr><td class="name">string_scalar</td><td class="mono">&ldquo;interlock open&rdquo;</td><td>&mdash;</td><td><span class="chip warn">ALARM</span></td><td class="num">12:44:06.988</td>
+                  <td><div class="write"><input id="w-string" value="idle" aria-label="string_scalar set point"><button class="btn">Write</button></div></td></tr>
+                <tr><td class="name">throughput</td><td class="num"><span class="pulled">418.2</span></td><td>MB/s</td><td><span class="chip idle">polled 1 s</span></td><td class="num">12:44:07.002</td><td></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="plot-grid">
+            <figure class="figure">
+              <header><span class="mono">double_spectrum</span><span class="meta">1024 pts &middot; VALID</span></header>
+              <svg viewBox="0 0 320 132" role="img" aria-label="Spectrum plot peaking at 2.4 near index 512">
+                <g font-family="IBM Plex Mono, monospace" font-size="8" fill="currentColor" opacity=".55">
+                  <text x="2" y="14">2.5</text><text x="2" y="66">1.2</text><text x="10" y="112">0</text>
+                  <text x="30" y="126">0</text><text x="148" y="126">512</text><text x="282" y="126">1023</text>
+                </g>
+                <g stroke="currentColor" opacity=".13"><line x1="30" y1="11" x2="312" y2="11"/><line x1="30" y1="62" x2="312" y2="62"/><line x1="30" y1="108" x2="312" y2="108"/></g>
+                <polyline id="spec-fill" fill="var(--accent)" fill-opacity=".14" stroke="none" points=""></polyline>
+                <polyline id="spec-line" fill="none" stroke="var(--accent)" stroke-width="1.4" stroke-linejoin="round" points=""></polyline>
+              </svg>
+            </figure>
+            <figure class="figure">
+              <header><span class="mono">double_image</span><span class="meta">256&times;256 &middot; 18 fps</span></header>
+              <canvas id="img-canvas" width="320" height="132" aria-label="Beam profile image, hot spot slightly left of centre"></canvas>
+              <div style="display:flex; gap:10px; font-size:11px; color:var(--ink-3)" class="mono">
+                <span>LUT viridis</span><span>min 0.0</span><span>max 4096</span><span>ROI 64&times;64 &sum; 1.42e6</span>
+              </div>
+            </figure>
+          </div>
+        </section>
+
+        <!-- 4. PROPERTY EDITOR -->
+        <section class="screen" data-screen="properties" role="tabpanel" aria-label="Properties of id09/motor/phi">
+          <div class="bar">
+            <span class="stat mono" style="font-size:13px">id09/motor/phi</span>
+            <span class="chip idle">IcePAPController</span>
+            <span class="spacer"></span>
+            <button class="btn">Copy to&hellip;</button>
+            <button class="btn">Add property</button>
+            <button class="btn danger">Delete</button>
+          </div>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>Property</th><th>Value</th><th>Source</th><th>Changed</th></tr></thead>
+              <tbody>
+                <tr><td class="name">AxisNumber</td><td class="mono">3</td><td><span class="chip idle">device</span></td><td class="num">2026-04-11</td></tr>
+                <tr class="sel"><td class="name">Velocity</td><td class="mono">2.5 &nbsp;&rarr;&nbsp; <b>4.0</b></td><td><span class="chip idle">device</span></td><td class="num">unsaved</td></tr>
+                <tr><td class="name">EncoderType</td><td class="mono">ABSOLUTE</td><td><span class="chip idle">class</span></td><td class="num">2025-11-02</td></tr>
+                <tr><td class="name">polled_attr</td><td class="mono">position, 200, state, 1000</td><td><span class="chip idle">device</span></td><td class="num">2026-02-19</td></tr>
+                <tr><td class="name">__SubDevices</td><td class="mono">id09/icepap/ctrl</td><td><span class="chip idle">generated</span></td><td class="num">2026-09-14</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="plot-grid">
+            <div class="panel-box">
+              <h4>Pending change &mdash; preview before write</h4>
+              <div class="diff">
+                <div class="rm">&minus; id09/motor/phi &middot; Velocity = 2.5</div>
+                <div class="add">+ id09/motor/phi &middot; Velocity = 4.0</div>
+              </div>
+              <div style="display:flex; gap:6px">
+                <button class="btn primary">Apply 1 change</button>
+                <button class="btn">Discard</button>
+                <span style="font-size:11.5px; color:var(--ink-3); align-self:center">Reversible &mdash; undo stays in the journal</span>
+              </div>
+            </div>
+            <div class="panel-box">
+              <h4>History &mdash; Velocity</h4>
+              <ul class="hist">
+                <li><time>2026-04-11</time><span class="mono">2.5</span></li>
+                <li><time>2025-11-02</time><span class="mono">1.8</span></li>
+                <li><time>2025-06-30</time><span class="mono">1.0</span></li>
+              </ul>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <!-- INSPECTOR -->
+      <aside class="inspector" aria-label="Inspector">
+        <div class="insp-block" data-screen="overview">
+          <p class="eyebrow">Selection</p>
+          <div class="mono" style="font-size:13px">id09-vac-01</div>
+          <span class="chip bad"><i class="dot bad"></i>UNREACHABLE</span>
+          <dl class="kv">
+            <dt>Starter</dt><dd>tango/admin/id09-vac-01</dd>
+            <dt>Last seen</dt><dd>12:41:08</dd>
+            <dt>Servers</dt><dd>4 controlled</dd>
+            <dt>Error</dt><dd>API_DeviceTimedOut</dd>
+          </dl>
+          <div class="actions">
+            <button class="btn">Ping Starter</button>
+            <button class="btn">Open ssh session</button>
+            <button class="btn">Show error detail</button>
+          </div>
+        </div>
+        <div class="insp-block" data-screen="host" data-active="true">
+          <p class="eyebrow">Selection</p>
+          <div class="mono" style="font-size:13px">Vacuum/id09-front</div>
+          <span class="chip bad"><i class="dot bad"></i>STOPPED</span>
+          <dl class="kv">
+            <dt>Host</dt><dd>id09-srv-02</dd>
+            <dt>Level</dt><dd>2</dd>
+            <dt>Class</dt><dd>VacuumController</dd>
+            <dt>Devices</dt><dd>7</dd>
+            <dt>Exited</dt><dd>12:41:05</dd>
+          </dl>
+          <div class="actions">
+            <button class="btn primary">Start server</button>
+            <button class="btn">Change level&hellip;</button>
+            <button class="btn">Move to host&hellip;</button>
+            <button class="btn">Open devices</button>
+            <button class="btn danger">Hard kill</button>
+          </div>
+        </div>
+        <div class="insp-block" data-screen="device">
+          <p class="eyebrow">Selection</p>
+          <div class="mono" style="font-size:13px">sys/tg_test/1</div>
+          <span class="chip ok"><i class="dot ok"></i>ON</span>
+          <dl class="kv">
+            <dt>Class</dt><dd>TangoTest</dd>
+            <dt>Server</dt><dd>TangoTest/test</dd>
+            <dt>Host</dt><dd>id09-srv-02</dd>
+            <dt>PID</dt><dd>2755</dd>
+            <dt>IDL</dt><dd>5</dd>
+            <dt>Exported</dt><dd>2026-09-13 08:02</dd>
+          </dl>
+          <div class="actions">
+            <button class="btn">Restart device</button>
+            <button class="btn">Edit properties</button>
+            <button class="btn">Polling&hellip;</button>
+            <button class="btn">Copy tango:// link</button>
+          </div>
+        </div>
+        <div class="insp-block" data-screen="properties">
+          <p class="eyebrow">Selection</p>
+          <div class="mono" style="font-size:13px">Velocity</div>
+          <span class="chip warn">1 unsaved change</span>
+          <dl class="kv">
+            <dt>Object</dt><dd>id09/motor/phi</dd>
+            <dt>Scope</dt><dd>device</dd>
+            <dt>Type</dt><dd>double, 1 value</dd>
+            <dt>Class default</dt><dd>1.0</dd>
+          </dl>
+          <div class="actions">
+            <button class="btn">Apply to selected devices&hellip;</button>
+            <button class="btn">Revert to class default</button>
+            <button class="btn">Show history</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- JOURNAL -->
+    <div class="journal">
+      <div class="jtabs"><span aria-current="true">Journal</span><span>Errors (1)</span><span>Device log</span></div>
+      <div class="jrow"><time>12:43:58</time><span class="what">DevStart &middot; LimaCCDs/pilatus @ id09-srv-02</span><span class="chip busy">in progress</span></div>
+      <div class="jrow"><time>12:39:11</time><span class="what">put_device_property &middot; id09/motor/phi &middot; Velocity 2.5 &rarr; 4.0</span><button class="btn">Undo</button></div>
+      <div class="jrow"><time>12:37:40</time><span class="what">set_attribute_config &middot; id09/vac/gauge-1 &middot; pressure.max_alarm 1e-4</span><button class="btn">Undo</button></div>
+    </div>
+
+    <div class="statusbar">
+      <span>tango-cs.id09:10000</span><span>6 hosts &middot; 142 devices</span><span>63 subscriptions</span>
+      <span>2 calls in flight</span><span class="spacer"></span><span>events OK</span><span>read-only</span>
+    </div>
+  </div>
+
+  <section class="notes" aria-label="Design notes">
+    <div class="note">
+      <p class="eyebrow">Navigator</p>
+      <h4>Five Jive trees, one navigator</h4>
+      <p>Hosts, servers, devices, classes, aliases and free properties are scopes of the same tree, lazily loaded and filtered in place. Ctrl&#8239;K resolves any name, alias or <span class="mono">tango://</span> URI.</p>
+    </div>
+    <div class="note">
+      <p class="eyebrow">Live data</p>
+      <h4>Events, with the fallback visible</h4>
+      <p>Values arrive by Tango change events. Where events are unavailable the value is polled and marked with a dotted underline, so nobody mistakes a stale reading for a pushed one.</p>
+    </div>
+    <div class="note">
+      <p class="eyebrow">Writes</p>
+      <h4>Preview, apply, undo</h4>
+      <p>Every database edit is a command: diffed before it is written, logged in the journal with the previous value, and reversible. Read-only mode is one wrapper around the backend.</p>
+    </div>
+    <div class="note">
+      <p class="eyebrow">Process control</p>
+      <h4>Startup levels as lanes</h4>
+      <p>A host is its startup sequence, so the host panel is grouped by level rather than alphabetically. Bulk actions operate level by level, in order, the way Starter does.</p>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+  var screens = document.querySelectorAll(".screen");
+  var tabs = document.querySelectorAll(".tab");
+  var blocks = document.querySelectorAll(".insp-block");
+  var nodes = document.querySelectorAll(".node[data-screen]");
+
+  function show(name){
+    screens.forEach(function(s){ s.dataset.active = (s.dataset.screen === name) ? "true" : "false"; });
+    blocks.forEach(function(b){ b.dataset.active = (b.dataset.screen === name) ? "true" : "false"; });
+    tabs.forEach(function(t){ t.setAttribute("aria-selected", t.dataset.screen === name ? "true" : "false"); });
+    nodes.forEach(function(n){ n.setAttribute("aria-current", n.dataset.screen === name ? "true" : "false"); });
+  }
+  tabs.forEach(function(t){ t.addEventListener("click", function(){ show(t.dataset.screen); }); });
+  nodes.forEach(function(n){ n.addEventListener("click", function(){ show(n.dataset.screen); }); });
+
+  document.querySelectorAll(".scope button, .subtab").forEach(function(b){
+    b.addEventListener("click", function(){
+      var sibs = b.parentElement.querySelectorAll("button");
+      sibs.forEach(function(s){ s.setAttribute("aria-pressed", s === b ? "true" : "false"); });
+    });
+  });
+
+  var theme = document.getElementById("theme");
+  theme.addEventListener("click", function(){
+    var cur = document.documentElement.getAttribute("data-theme");
+    var dark = cur ? cur === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+    paintImage();
+  });
+
+  // spectrum: gaussian peak + ripple + noise, mapped into the 30..312 x 11..108 box
+  var line = document.getElementById("spec-line"), fill = document.getElementById("spec-fill");
+  var pts = [], fpts = ["30,108"];
+  for (var i = 0; i <= 140; i++){
+    var x = 30 + i * (282/140);
+    var u = (i - 70) / 22;
+    var v = 2.4 * Math.exp(-0.5*u*u) + 0.22*Math.sin(i/4.1) + 0.30*Math.exp(-0.5*Math.pow((i-30)/9,2));
+    var y = 108 - Math.max(0, v) * (97/2.5);
+    pts.push(x.toFixed(1) + "," + y.toFixed(1));
+  }
+  line.setAttribute("points", pts.join(" "));
+  fill.setAttribute("points", "30,108 " + pts.join(" ") + " 312,108");
+
+  // beam-profile image, viridis-like LUT
+  function paintImage(){
+    var c = document.getElementById("img-canvas"), g = c.getContext("2d");
+    var w = c.width, h = c.height, img = g.createImageData(w, h);
+    var stops = [[68,1,84],[59,82,139],[33,145,140],[94,201,98],[253,231,37]];
+    for (var y = 0; y < h; y++){
+      for (var x = 0; x < w; x++){
+        var dx = (x - w*0.44)/38, dy = (y - h*0.5)/26;
+        var v = Math.exp(-0.5*(dx*dx + dy*dy));
+        v += 0.35*Math.exp(-0.5*(Math.pow((x-w*0.62)/52,2) + Math.pow((y-h*0.38)/30,2)));
+        v += 0.06*Math.random();
+        v = Math.max(0, Math.min(1, v));
+        var t = v*(stops.length-1), k = Math.min(stops.length-2, Math.floor(t)), f = t-k;
+        var i4 = (y*w + x)*4;
+        img.data[i4]   = stops[k][0] + (stops[k+1][0]-stops[k][0])*f;
+        img.data[i4+1] = stops[k][1] + (stops[k+1][1]-stops[k][1])*f;
+        img.data[i4+2] = stops[k][2] + (stops[k+1][2]-stops[k][2])*f;
+        img.data[i4+3] = 255;
+      }
+    }
+    g.putImageData(img, 0, 0);
+  }
+  paintImage();
+})();
+</script>
