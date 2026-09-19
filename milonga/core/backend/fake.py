@@ -56,6 +56,8 @@ from milonga.core.services.starter_protocol import ServerLine, format_server_lin
 type CommandHandler = Callable[["FakeBackend", Any], Any]
 
 STARTER_CLASS = "Starter"
+ADMIN_CLASS = "DServer"
+ADMIN_DOMAIN = "dserver"
 
 
 @dataclass(slots=True)
@@ -174,6 +176,10 @@ class FakeBackend:
             server.pid = next(self._pids)
             server.started_at = datetime.now()
         self.servers[server_name] = server
+        admin = FakeDevice(server_name.admin_device, ADMIN_CLASS, server_name)
+        self.devices[admin.name] = admin
+        if running:
+            self._export(admin)
         return server
 
     def register_device(
@@ -346,7 +352,7 @@ class FakeBackend:
 
     async def get_host_list(self, pattern: str = "*") -> tuple[str, ...]:
         await self._io("get_host_list")
-        return tuple(sorted(name for name in self.hosts if fnmatch.fnmatch(name, pattern)))
+        return tuple(sorted(name for name in self.hosts if _matches(name, pattern)))
 
     async def get_host_server_list(self, host: str) -> tuple[ServerName, ...]:
         await self._io("get_host_server_list")
@@ -354,7 +360,7 @@ class FakeBackend:
 
     async def get_server_list(self, pattern: str = "*") -> tuple[ServerName, ...]:
         await self._io("get_server_list")
-        return tuple(sorted(name for name in self.servers if fnmatch.fnmatch(str(name), pattern)))
+        return tuple(sorted(name for name in self.servers if _matches(str(name), pattern)))
 
     async def get_server_info(self, server: ServerName) -> ServerInfo:
         await self._io("get_server_info")
@@ -372,7 +378,9 @@ class FakeBackend:
     async def get_server_class_list(self, server: ServerName) -> tuple[str, ...]:
         await self._io("get_server_class_list")
         self._server(server)
-        return tuple(sorted({device.class_name for device in self._devices_of(server)}))
+        return tuple(
+            sorted({device.class_name for device in self._devices_of(server, visible_only=True)})
+        )
 
     async def add_server(self, server: ServerName, devices: Sequence[DeviceRegistration]) -> None:
         await self._write("add_server")
@@ -411,12 +419,26 @@ class FakeBackend:
     async def get_device_domain_list(self, pattern: str = "*") -> tuple[str, ...]:
         await self._io("get_device_domain_list")
         return tuple(
-            sorted({name.domain for name in self.devices if fnmatch.fnmatch(name.domain, pattern)})
+            sorted(
+                {
+                    name.domain
+                    for name in self.devices
+                    if _browsable(name) and _matches(name.domain, pattern)
+                }
+            )
         )
 
     async def get_device_family_list(self, domain: str) -> tuple[str, ...]:
         await self._io("get_device_family_list")
-        return tuple(sorted({n.family for n in self.devices if fnmatch.fnmatch(n.domain, domain)}))
+        return tuple(
+            sorted(
+                {
+                    name.family
+                    for name in self.devices
+                    if _browsable(name) and _matches(name.domain, domain)
+                }
+            )
+        )
 
     async def get_device_member_list(self, domain: str, family: str) -> tuple[str, ...]:
         await self._io("get_device_member_list")
@@ -424,23 +446,35 @@ class FakeBackend:
             sorted(
                 name.member
                 for name in self.devices
-                if fnmatch.fnmatch(name.domain, domain) and fnmatch.fnmatch(name.family, family)
+                if _browsable(name)
+                and _matches(name.domain, domain)
+                and _matches(name.family, family)
             )
         )
 
     async def get_device_list(self, pattern: str = "*/*/*") -> tuple[DeviceName, ...]:
         await self._io("get_device_list")
-        return tuple(sorted(name for name in self.devices if fnmatch.fnmatch(str(name), pattern)))
+        return tuple(
+            sorted(
+                name
+                for name in self.devices
+                if _browsable(name) and _matches(str(name), pattern)
+            )
+        )
 
     async def get_device_list_for_class(self, class_name: str) -> tuple[DeviceName, ...]:
         await self._io("get_device_list_for_class")
         return tuple(
-            sorted(name for name, dev in self.devices.items() if dev.class_name == class_name)
+            sorted(
+                name
+                for name, dev in self.devices.items()
+                if dev.class_name == class_name and _browsable(name)
+            )
         )
 
     async def get_device_list_for_server(self, server: ServerName) -> tuple[DeviceName, ...]:
         await self._io("get_device_list_for_server")
-        return tuple(sorted(device.name for device in self._devices_of(server)))
+        return tuple(sorted(device.name for device in self._devices_of(server, visible_only=True)))
 
     async def get_device_info(self, device: DeviceName) -> DeviceInfo:
         await self._io("get_device_info")
@@ -497,7 +531,7 @@ class FakeBackend:
 
     async def get_class_list(self, pattern: str = "*") -> tuple[str, ...]:
         await self._io("get_class_list")
-        return tuple(sorted(name for name in self.classes if fnmatch.fnmatch(name, pattern)))
+        return tuple(sorted(name for name in self.classes if _matches(name, pattern)))
 
     # -- aliases
 
@@ -507,7 +541,7 @@ class FakeBackend:
             sorted(
                 device.alias
                 for device in self.devices.values()
-                if device.alias and fnmatch.fnmatch(device.alias, pattern)
+                if device.alias and _matches(device.alias, pattern)
             )
         )
 
@@ -619,7 +653,7 @@ class FakeBackend:
             sorted(
                 owner
                 for scope, owner in self._properties
-                if scope is PropertyScope.FREE and fnmatch.fnmatch(owner, pattern)
+                if scope is PropertyScope.FREE and _matches(owner, pattern)
             )
         )
 
@@ -836,8 +870,12 @@ class FakeBackend:
             raise ObjectNotFound(f"device {device.name} has no attribute {name!r}")
         return attribute
 
-    def _devices_of(self, server: ServerName) -> list[FakeDevice]:
-        return [device for device in self.devices.values() if device.server == server]
+    def _devices_of(self, server: ServerName, *, visible_only: bool = False) -> list[FakeDevice]:
+        return [
+            device
+            for device in self.devices.values()
+            if device.server == server and (not visible_only or _browsable(device.name))
+        ]
 
     def _export(self, device: FakeDevice) -> None:
         server = self.servers.get(device.server)
@@ -1017,3 +1055,13 @@ class FakeBackend:
     ) -> None:
         entries = self._history.setdefault((scope, owner, name), [])
         entries.append(PropertyHistoryEntry(name, values, datetime.now(), deleted))
+
+
+def _matches(name: str, pattern: str) -> bool:
+    """The Tango database matches names case-insensitively; so does this."""
+    return fnmatch.fnmatchcase(name.lower(), pattern.lower())
+
+
+def _browsable(name: DeviceName) -> bool:
+    """Admin devices live in the database but are not objects users browse."""
+    return name.domain != ADMIN_DOMAIN

@@ -15,6 +15,9 @@ tango = ["pytango>=9.4"]
 gui = ["PyQt6>=6.6", "pyqtgraph>=0.13", "qasync>=0.27"]
 dev = ["pytest>=8", "pytest-asyncio>=0.23", "mypy>=1.8", "ruff>=0.5"]
 
+[project.scripts]
+milonga = "milonga.cli:main"
+
 [tool.hatch.build.targets.wheel]
 packages = ["milonga"]
 
@@ -28,6 +31,12 @@ asyncio_default_fixture_loop_scope = "function"
 python_version = "3.12"
 strict = true
 warn_unreachable = true
+explicit_package_bases = true
+mypy_path = "."
+
+[[tool.mypy.overrides]]
+module = "qasync.*"
+ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 100
@@ -35,3 +44,7 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "ANN", "RUF"]
 ignore = ["ANN401"]  # Tango attribute values and command arguments are dynamic
+
+[tool.ruff.lint.per-file-ignores]
+"milonga/ui/**" = ["B008"]  # Qt virtual methods take QModelIndex() defaults
+"tests/**" = ["ANN"]

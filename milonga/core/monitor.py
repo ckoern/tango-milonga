@@ -17,6 +17,7 @@ from milonga.core.errors import ErrorReport, TangoError
 from milonga.core.model import AttributeValue, EventData, MonitorStats
 from milonga.core.names import AttributeRef
 from milonga.core.store import SystemStore
+from milonga.core.tasks import drain_tasks
 
 type MonitorCallback = Callable[[EventData], None]
 type ChannelKey = tuple[AttributeRef, EventType]
@@ -135,8 +136,7 @@ class MonitorHub:
 
     async def drain(self) -> None:
         """Wait for releases scheduled from synchronous code."""
-        while self._tasks:
-            await asyncio.gather(*list(self._tasks), return_exceptions=True)
+        await drain_tasks(self._tasks)
 
     # ------------------------------------------------------------------ internals
 

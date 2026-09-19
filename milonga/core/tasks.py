@@ -2,6 +2,7 @@
 
 import asyncio
 from collections.abc import Awaitable, Callable, Iterable, Sequence
+from typing import Any
 
 DEFAULT_CONCURRENCY = 8
 
@@ -37,3 +38,17 @@ async def gather_settled[T, R](
 
     results = await asyncio.gather(*(guarded(item) for item in items), return_exceptions=True)
     return tuple(zip(items, results, strict=True))
+
+
+async def drain_tasks(tasks: "set[asyncio.Task[Any]]") -> None:
+    """Wait until ``tasks`` empties.
+
+    Awaiting an already finished task does not yield, so the done-callbacks
+    that remove tasks from the set would never run; the explicit ``sleep(0)``
+    hands control back to the loop on every pass.
+    """
+    while tasks:
+        pending = [task for task in tasks if not task.done()]
+        if pending:
+            await asyncio.wait(pending)
+        await asyncio.sleep(0)

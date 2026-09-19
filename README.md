@@ -16,32 +16,51 @@ replacing the Java tools *Astor* (process control through Starter devices) and
 
 ## Status
 
-Milestone 0 of the plan in the design concept is implemented: the domain layer,
-the backend protocol, an in-memory control system, the snapshot store and the
-monitor hub. There is no GUI yet, and no PyTango backend yet.
+Milestones 0 to 2 of the plan in the design concept are implemented: the domain
+layer, the application shell, and the read path of Jive. Writing to the database
+and live attribute values are not implemented yet, and neither is the PyTango
+backend — the application currently runs against the in-memory demo system.
+
+![Device panel](docs/screenshot-device.png)
+
+![Host tree and host panel](docs/screenshot-hosts.png)
 
 ```
-milonga/core/
+milonga/core/                               no Qt, no PyTango
   names.py, enums.py, errors.py, model.py   value objects and snapshots
   backend/protocol.py                       the async contract, coroutines only
   backend/fake.py, backend/demo.py          in-memory control system, Starter included
   backend/readonly.py                       read-only enforcement in one wrapper
   store.py                                  snapshots plus diffs
   monitor.py                                subscription ownership, polling fallback
-  services/                                 Starter control, inventory, Starter wire format
+  services/                                 Starter control, inventory, host groups
+milonga/ui/                                 the only package importing Qt
+  app.py, cli.py                            qasync bootstrap and command line
+  theme.py                                  design tokens, light and dark
+  tasks.py                                  coroutines tied to a widget's lifetime
+  navigator.py                              one tree, six scopes, lazily loaded
+  models/                                   lazy tree, generic table, row painting
+  panels/                                   device, server, class, object, host
+  mainwindow.py, search.py                  window chrome and the command palette
 ```
 
-`milonga.core` imports neither Qt nor PyTango. That is what makes the whole
-layer testable without a control system, and it is enforced by the fact that
-the only Tango-specific module is `backend/pytango_backend.py` (not written yet).
+## Running
+
+```bash
+.venv/bin/python -m milonga.cli                       # demo control system
+.venv/bin/python -m milonga.cli --theme light --scope hosts
+.venv/bin/python -m milonga.cli sys/tg_test/1         # open a device at startup
+```
+
+Keys: `Ctrl+K` search, `F5` refresh the current panel.
 
 ## Development
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install -e '.[dev]'
+.venv/bin/pip install -e '.[dev,gui]'
 
-.venv/bin/pytest          # 88 tests, no control system needed
+.venv/bin/pytest          # 136 tests, no control system needed
 .venv/bin/mypy milonga tests
 .venv/bin/ruff check .
 ```
