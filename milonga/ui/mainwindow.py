@@ -23,6 +23,7 @@ from milonga.ui.navigator import Navigator, Scope, target_of
 from milonga.ui.panels import Panel, create_panel
 from milonga.ui.panels.base import InfoForm
 from milonga.ui.search import SearchDialog
+from milonga.ui.tasks import TaskRunner
 from milonga.ui.theme import Theme, Tokens
 
 
@@ -107,6 +108,7 @@ class MainWindow(QMainWindow):
         self.tabs.tabCloseRequested.connect(self._close_tab)
         self.setCentralWidget(self.tabs)
         self._panels: dict[str, Panel] = {}
+        self._runner = TaskRunner(self, context.journal, context="window")
 
         self.navigator = Navigator(context, tokens, self)
         self.navigator.targetActivated.connect(self.open_target)
@@ -163,6 +165,7 @@ class MainWindow(QMainWindow):
 
     async def idle(self) -> None:
         await self.navigator.idle()
+        await self._runner.idle()
         for panel in list(self._panels.values()):
             await panel.idle()
 
@@ -173,7 +176,9 @@ class MainWindow(QMainWindow):
         self._panels.pop(widget.target.uri, None)
         self.tabs.removeTab(index)
         widget.runner.cancel_all()
-        widget.deleteLater()
+        # The panel's own runner is gone, so its subscriptions are released on
+        # the window's runner instead of being abandoned.
+        self._runner.run(widget.aclose(), on_result=lambda _: widget.deleteLater())
         self._update_status()
 
     # ------------------------------------------------------------------- chrome

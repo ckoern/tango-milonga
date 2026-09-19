@@ -321,7 +321,7 @@ value; a write is always an explicit action, never a side effect of focus loss.
 | 0 ✓ | `core.backend` protocol + `FakeBackend` + store + monitor hub, no GUI | Everything else is testable from day one |
 | 1 ✓ | Shell: main window, navigator, palette, journal, theme | The frame every panel plugs into |
 | 2 ✓ | Jive read path: device/server/class trees, property viewer, device info | Highest daily value, read-only, low risk |
-| 3 | Device panel: attributes, commands, spectra, images | Unblocks "is my device alive" |
+| 3 ✓ | Device panel: attributes, commands, spectra, images | Unblocks "is my device alive" |
 | 4 | Write path: Command/Diff/Journal, property editing, attribute config | First mutations, with the safety net already in place |
 | 5 | Astor: overview, host panel, Starter control, levels, logs | Needs the write path's confirmation machinery |
 | 6 | Wizards, polling, events, statistics, versions, TAC | The long tail that makes replacement complete |

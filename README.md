@@ -16,12 +16,14 @@ replacing the Java tools *Astor* (process control through Starter devices) and
 
 ## Status
 
-Milestones 0 to 2 of the plan in the design concept are implemented: the domain
-layer, the application shell, and the read path of Jive. Writing to the database
-and live attribute values are not implemented yet, and neither is the PyTango
-backend — the application currently runs against the in-memory demo system.
+Milestones 0 to 3 of the plan in the design concept are implemented: the domain
+layer, the application shell, the read path of Jive, and the live device panel.
+Editing the database is not implemented yet, and neither is the PyTango backend
+— the application currently runs against the in-memory demo system.
 
-![Device panel](docs/screenshot-device.png)
+![Device panel with a live spectrum](docs/screenshot-device.png)
+
+![Image attribute with its colour scale](docs/screenshot-image.png)
 
 ![Host tree and host panel](docs/screenshot-hosts.png)
 
@@ -39,7 +41,10 @@ milonga/ui/                                 the only package importing Qt
   theme.py                                  design tokens, light and dark
   tasks.py                                  coroutines tied to a widget's lifetime
   navigator.py                              one tree, six scopes, lazily loaded
-  models/                                   lazy tree, generic table, row painting
+  live.py                                   watches held only while a view is shown
+  format.py                                 Tango values to text and back
+  plots.py                                  spectrum and image views
+  models/                                   lazy tree, generic table, live values
   panels/                                   device, server, class, object, host
   mainwindow.py, search.py                  window chrome and the command palette
 ```
@@ -54,13 +59,18 @@ milonga/ui/                                 the only package importing Qt
 
 Keys: `Ctrl+K` search, `F5` refresh the current panel.
 
+The device panel is live: scalar values arrive by Tango events while the panel
+is on screen and stop when it is hidden. A spectrum or image is watched only
+while it is the selected attribute. Writing an attribute and running a command
+are explicit actions, disabled entirely with `--read-only`.
+
 ## Development
 
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -e '.[dev,gui]'
 
-.venv/bin/pytest          # 136 tests, no control system needed
+.venv/bin/pytest          # 179 tests, no control system needed
 .venv/bin/mypy milonga tests
 .venv/bin/ruff check .
 ```

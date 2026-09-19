@@ -18,6 +18,21 @@ from milonga.ui.context import Journal
 type Coro[T] = Coroutine[Any, Any, T]
 
 
+def _usable_loop() -> asyncio.AbstractEventLoop | None:
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        return None
+    return None if loop.is_closed() else loop
+
+
+def close_unstarted(coro: Awaitable[Any]) -> None:
+    """Dispose of a coroutine that will never run, without a warning."""
+    closer = getattr(coro, "close", None)
+    if callable(closer):
+        closer()
+
+
 class TaskRunner(QObject):
     def __init__(
         self,
@@ -45,8 +60,14 @@ class TaskRunner(QObject):
         on_result: Callable[[T], None] | None = None,
         on_error: Callable[[ErrorReport], None] | None = None,
         label: str = "",
-    ) -> asyncio.Task[T]:
-        task = asyncio.ensure_future(coro)
+    ) -> asyncio.Task[T] | None:
+        """Returns ``None`` when no loop is left to run on, which happens while
+        the application shuts down and its widgets are hidden."""
+        loop = _usable_loop()
+        if loop is None:
+            close_unstarted(coro)
+            return None
+        task = asyncio.ensure_future(coro, loop=loop)
         self._tasks.add(task)
         task.add_done_callback(lambda finished: self._finish(finished, on_result, on_error, label))
         return task

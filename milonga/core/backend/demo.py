@@ -151,7 +151,7 @@ def _build_tango_test(backend: FakeBackend, device: DeviceName) -> None:
     )
 
     rows, columns = np.mgrid[0:256, 0:256]
-    image = 4096 * np.exp(-0.5 * (((rows - 120) / 38) ** 2 + ((columns - 112) / 30) ** 2))
+    image = 4096 * np.exp(-0.5 * (((rows - 120) / 21) ** 2 + ((columns - 112) / 17) ** 2))
     backend.register_attribute(
         device,
         AttributeSpec(

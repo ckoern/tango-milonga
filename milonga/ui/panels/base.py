@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import QAbstractItemModel, pyqtSignal
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QFormLayout,
@@ -48,6 +48,10 @@ class Panel(QWidget):
     def refresh(self) -> None:
         raise NotImplementedError
 
+    async def aclose(self) -> None:
+        """Release anything held beyond this widget, such as subscriptions."""
+        return None
+
     async def idle(self) -> None:
         await self.runner.idle()
 
@@ -59,7 +63,19 @@ class Panel(QWidget):
         layout.addWidget(self.banner)
         return layout
 
-    def make_table[T](self, model: ObjectTableModel[T]) -> QTableView:
+    def make_table(
+        self,
+        model: QAbstractItemModel,
+        *,
+        chips: Sequence[int] = (),
+        stretch: Sequence[int] = (),
+    ) -> QTableView:
+        """A read-only table. Column roles come from the model when it declares them."""
+        if isinstance(model, ObjectTableModel):
+            columns = model.columns
+            stretch = [index for index, column in enumerate(columns) if column.stretch > 1]
+            chips = [index for index, column in enumerate(columns) if column.category is not None]
+
         view = QTableView(self)
         view.setModel(model)
         view.setAlternatingRowColors(True)
@@ -67,7 +83,6 @@ class Panel(QWidget):
         view.setWordWrap(False)
         view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         view.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        view.setSortingEnabled(False)
         vertical = view.verticalHeader()
         if vertical is not None:
             vertical.setVisible(False)
@@ -75,16 +90,15 @@ class Panel(QWidget):
         horizontal = view.horizontalHeader()
         if horizontal is not None:
             horizontal.setHighlightSections(False)
-            for position, column in enumerate(model.columns):
+            for position in range(model.columnCount()):
                 mode = (
                     QHeaderView.ResizeMode.Stretch
-                    if column.stretch > 1
+                    if position in stretch
                     else QHeaderView.ResizeMode.ResizeToContents
                 )
                 horizontal.setSectionResizeMode(position, mode)
-        for position, column in enumerate(model.columns):
-            if column.category is not None:
-                view.setItemDelegateForColumn(position, NodeDelegate(self.tokens, view))
+        for position in chips:
+            view.setItemDelegateForColumn(position, NodeDelegate(self.tokens, view))
         return view
 
 

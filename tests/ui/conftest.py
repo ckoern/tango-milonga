@@ -45,3 +45,20 @@ def demo_backend() -> FakeBackend:
 @pytest.fixture
 def light_tokens() -> Tokens:
     return LIGHT
+
+
+@pytest.fixture
+async def read_only_context(backend: FakeBackend) -> AppContext:
+    from milonga.core.backend.readonly import ReadOnlyBackend
+
+    guarded = ReadOnlyBackend(backend)
+    store = SystemStore()
+    return AppContext(
+        backend=guarded,
+        store=store,
+        monitor=MonitorHub(guarded, store=store),
+        inventory=Inventory(guarded),
+        control=StarterControl(guarded),
+        journal=Journal(),
+        groups=await load_host_groups(guarded),
+    )

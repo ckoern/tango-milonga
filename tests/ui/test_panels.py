@@ -28,9 +28,10 @@ async def test_device_panel_shows_info_properties_and_interface(
     await _ready(panel)
     assert panel.header.chip.text() == "ON"
     assert panel.properties.rowCount() == 0
-    assert panel.attributes.rowCount() == 7
+    assert panel.values.rowCount() == 9
+    assert panel.specs.rowCount() == 9
     assert panel.commands.rowCount() == 3
-    assert "Attributes (7)" in panel.tabs.tabText(2)
+    assert "Attributes (9)" in panel.tabs.tabText(0)
     assert panel.banner.isVisibleTo(panel) is False
 
 
@@ -42,7 +43,7 @@ async def test_device_panel_lists_properties(context: AppContext, tokens: Tokens
         for row in range(panel.properties.rowCount())
     ]
     assert "Velocity" in names
-    assert panel.attributes.rowCount() == 2
+    assert panel.values.rowCount() == 4
 
 
 async def test_device_panel_of_a_stopped_server_stays_readable(
@@ -52,7 +53,7 @@ async def test_device_panel_of_a_stopped_server_stays_readable(
     panel = DevicePanel(context, tokens, Target.device(DEVICE))
     await _ready(panel)
     assert panel.header.chip.text() == "NOT EXPORTED"
-    assert panel.attributes.rowCount() == 0
+    assert panel.values.rowCount() == 0
     assert panel.banner.isVisibleTo(panel) is False
 
 

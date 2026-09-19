@@ -1,10 +1,21 @@
 """Small shared widgets: state chips, section headings, error banners."""
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
 
-from milonga.core.enums import StateCategory
+from milonga.core.enums import StateCategory, TangoType
 from milonga.core.errors import ErrorReport
+from milonga.core.model import AttributeSpec, CommandSpec
+from milonga.ui.format import parse_command_argument, parse_write_value
 from milonga.ui.theme import Tokens, category_background, category_color, mono_font
 
 
@@ -96,3 +107,145 @@ class HeaderBar(QWidget):
     def set_header(self, name: str, context: str = "") -> None:
         self.name.setText(name)
         self.context.setText(context)
+
+
+class WriteBar(QWidget):
+    """Writing a value is always an explicit action, never a side effect."""
+
+    writeRequested = pyqtSignal(str, object)
+
+    def __init__(
+        self, tokens: Tokens, *, read_only: bool = False, parent: QWidget | None = None
+    ) -> None:
+        super().__init__(parent)
+        self._tokens = tokens
+        self._read_only = read_only
+        self._spec: AttributeSpec | None = None
+
+        self.caption = QLabel("Set point", self)
+        self.caption.setStyleSheet(f"color: {tokens.ink_3};")
+        self.name = QLabel("—", self)
+        self.name.setFont(mono_font())
+        self.editor = QLineEdit(self)
+        self.editor.setFont(mono_font())
+        self.editor.returnPressed.connect(self._submit)
+        self.button = QPushButton("Write", self)
+        self.button.clicked.connect(self._submit)
+        self.message = QLabel(self)
+        self.message.setStyleSheet(f"color: {tokens.bad};")
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        layout.addWidget(self.caption)
+        layout.addWidget(self.name)
+        layout.addWidget(self.editor, 1)
+        layout.addWidget(self.button)
+        layout.addWidget(self.message, 1)
+        self.set_target(None)
+
+    def set_target(self, spec: AttributeSpec | None, value: str = "") -> None:
+        self._spec = spec
+        writable = spec is not None and spec.writable.writable and not self._read_only
+        self.name.setText(spec.name if spec else "—")
+        self.editor.setEnabled(writable)
+        self.button.setEnabled(writable)
+        self.editor.setText(value if writable else "")
+        self.message.clear()
+        if spec is None:
+            self.editor.setPlaceholderText("select an attribute")
+        elif self._read_only:
+            self.editor.setPlaceholderText("session is read-only")
+        elif not spec.writable.writable:
+            self.editor.setPlaceholderText(f"{spec.name} is read-only")
+        else:
+            self.editor.setPlaceholderText(f"{spec.data_type.value}")
+
+    def show_message(self, text: str, *, error: bool = True) -> None:
+        colour = self._tokens.bad if error else self._tokens.ok
+        self.message.setStyleSheet(f"color: {colour};")
+        self.message.setText(text)
+
+    def _submit(self) -> None:
+        if self._spec is None or not self.editor.isEnabled():
+            return
+        try:
+            value = parse_write_value(self.editor.text(), self._spec)
+        except ValueError as error:
+            self.show_message(str(error))
+            return
+        self.message.clear()
+        self.writeRequested.emit(self._spec.name, value)
+
+
+class CommandBar(QWidget):
+    """Runs one command with a typed argument and shows what came back."""
+
+    executeRequested = pyqtSignal(str, object)
+
+    def __init__(
+        self, tokens: Tokens, *, read_only: bool = False, parent: QWidget | None = None
+    ) -> None:
+        super().__init__(parent)
+        self._tokens = tokens
+        self._read_only = read_only
+        self._spec: CommandSpec | None = None
+
+        self.caption = QLabel("Command", self)
+        self.caption.setStyleSheet(f"color: {tokens.ink_3};")
+        self.name = QLabel("—", self)
+        self.name.setFont(mono_font())
+        self.editor = QLineEdit(self)
+        self.editor.setFont(mono_font())
+        self.editor.returnPressed.connect(self._submit)
+        self.button = QPushButton("Execute", self)
+        self.button.clicked.connect(self._submit)
+        self.result = QLabel(self)
+        self.result.setFont(mono_font())
+        self.result.setWordWrap(True)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        layout.addWidget(self.caption)
+        layout.addWidget(self.name)
+        layout.addWidget(self.editor, 1)
+        layout.addWidget(self.button)
+        layout.addWidget(self.result, 2)
+        self.set_target(None)
+
+    def set_target(self, spec: CommandSpec | None) -> None:
+        self._spec = spec
+        runnable = spec is not None and not self._read_only
+        takes_argument = spec is not None and spec.in_type is not TangoType.VOID
+        self.name.setText(spec.name if spec else "—")
+        self.button.setEnabled(runnable)
+        self.editor.setEnabled(runnable and takes_argument)
+        self.editor.clear()
+        self.result.clear()
+        if spec is None:
+            self.editor.setPlaceholderText("select a command")
+        elif self._read_only:
+            self.editor.setPlaceholderText("session is read-only")
+        elif takes_argument:
+            self.editor.setPlaceholderText(spec.in_description or spec.in_type.value)
+        else:
+            self.editor.setPlaceholderText("takes no argument")
+
+    def show_result(self, text: str, *, error: bool = False) -> None:
+        colour = self._tokens.bad if error else self._tokens.ink_2
+        self.result.setStyleSheet(f"color: {colour};")
+        self.result.setText(text)
+
+    def _submit(self) -> None:
+        if self._spec is None or not self.button.isEnabled():
+            return
+        argin: object = None
+        if self._spec.in_type is not TangoType.VOID:
+            try:
+                argin = parse_command_argument(self.editor.text(), self._spec.in_type)
+            except ValueError as error:
+                self.show_result(str(error), error=True)
+                return
+        self.result.clear()
+        self.executeRequested.emit(self._spec.name, argin)

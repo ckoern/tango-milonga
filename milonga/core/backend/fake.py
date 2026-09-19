@@ -29,6 +29,7 @@ from milonga.core.enums import (
 from milonga.core.errors import (
     CommandFailed,
     DeviceUnreachable,
+    ErrorReport,
     ObjectNotFound,
     ReadOnlyError,
     TangoError,
@@ -193,6 +194,12 @@ class FakeBackend:
         device_name = name if isinstance(name, DeviceName) else DeviceName.parse(name)
         server_name = server if isinstance(server, ServerName) else ServerName.parse(server)
         device = FakeDevice(device_name, class_name, server_name, alias=alias)
+        device.attributes["State"] = FakeAttribute(
+            AttributeSpec("State", TangoType.STATE, AttrDataFormat.SCALAR, label="State")
+        )
+        device.attributes["Status"] = FakeAttribute(
+            AttributeSpec("Status", TangoType.STRING, AttrDataFormat.SCALAR, label="Status")
+        )
         self.devices[device_name] = device
         self.classes.add(class_name)
         owner = self.servers.get(server_name)
@@ -268,6 +275,7 @@ class FakeBackend:
             device.unexported_at = datetime.now()
             device.state = TangoState.UNKNOWN
             device.status = "Server is stopped"
+            self._push_device_error(device.name, f"server {server.name} is stopped")
         self._publish_host(server.host)
 
     def set_host_reachable(self, host: str, reachable: bool) -> None:
@@ -282,11 +290,20 @@ class FakeBackend:
         value: AttributeValue | None = None,
         *,
         event_type: EventType = EventType.CHANGE,
-        error: Any = None,
+        error: ErrorReport | None = None,
     ) -> None:
         event = EventData(ref, event_type, value, error, self._clock())
         for subscription in list(self._subscriptions.values()):
             if subscription.ref == ref and subscription.event_type is event_type:
+                subscription.callback(event)
+
+    def _push_device_error(self, device: DeviceName, message: str) -> None:
+        report = ErrorReport(message, "API_DeviceNotExported")
+        for subscription in list(self._subscriptions.values()):
+            if subscription.ref.device == device:
+                event = EventData(
+                    subscription.ref, subscription.event_type, None, report, self._clock()
+                )
                 subscription.callback(event)
 
     def set_attribute_value(
@@ -722,6 +739,7 @@ class FakeBackend:
         entry = self._live(device)
         if entry.class_name == STARTER_CLASS:
             self._refresh_starter(entry)
+        self._refresh_intrinsic(entry)
         return tuple(self._value_of(self._attribute(entry, name)) for name in names)
 
     async def write_attribute(self, device: DeviceName, name: str, value: Any) -> None:
@@ -886,6 +904,15 @@ class FakeBackend:
         if device.state is TangoState.UNKNOWN:
             device.state = TangoState.ON
             device.status = "Device is ON"
+
+    def _refresh_intrinsic(self, device: FakeDevice) -> None:
+        """``State`` and ``Status`` always mirror the device, as in a real server."""
+        now = self._clock()
+        for name, value in (("State", device.state), ("Status", device.status)):
+            attribute = device.attributes.get(name)
+            if attribute is not None:
+                attribute.value = value
+                attribute.timestamp = now
 
     def _value_of(self, attribute: FakeAttribute) -> AttributeValue:
         spec = attribute.spec
