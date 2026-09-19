@@ -44,7 +44,7 @@ def store() -> SystemStore:
 
 @pytest.fixture
 def control(backend: FakeBackend) -> StarterControl:
-    return StarterControl(backend)
+    return StarterControl(backend, exit_grace=0.0)
 
 
 @pytest.fixture

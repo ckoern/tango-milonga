@@ -10,9 +10,8 @@ from functools import partial
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from milonga.core.model import EventData, HostSnapshot
+from milonga.core.model import EventData, HostSnapshot, ServerSnapshot
 from milonga.core.monitor import Watch
-from milonga.core.names import ServerName
 from milonga.core.services.control import (
     StarterControl,
     build_host_snapshot,
@@ -30,7 +29,7 @@ class LiveHosts(QObject):
         self._context = context
         self._watches: dict[str, Watch] = {}
         self._snapshots: dict[str, HostSnapshot] = {}
-        self._uncontrolled: dict[str, tuple[ServerName, ...]] = {}
+        self._uncontrolled: dict[str, tuple[ServerSnapshot, ...]] = {}
 
     @property
     def hosts(self) -> tuple[str, ...]:
@@ -53,8 +52,10 @@ class LiveHosts(QObject):
                 await self._watches.pop(host).aclose()
         groups = {host: self._context.groups.group_of(host) for host in wanted}
         for snapshot in await self._context.control.host_snapshots(wanted, groups=groups):
+            # the Starter's events say nothing about these; they keep the state
+            # probed at load until the next refresh
             self._uncontrolled[snapshot.name] = tuple(
-                server.name for server in snapshot.servers if not server.info.is_controlled
+                server for server in snapshot.servers if not server.info.is_controlled
             )
             self._publish(snapshot)
         for host in wanted:
@@ -79,7 +80,7 @@ class LiveHosts(QObject):
                 host,
                 parse_server_lines(event.value.value),
                 group=group,
-                known_servers=self._uncontrolled.get(host, ()),
+                uncontrolled=self._uncontrolled.get(host, ()),
                 updated_at=event.value.timestamp,
             )
         )

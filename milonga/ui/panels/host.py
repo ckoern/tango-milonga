@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
 )
 
 from milonga.core.commands import SetServerControl
-from milonga.core.enums import NOT_CONTROLLED_LEVEL
+from milonga.core.enums import NOT_CONTROLLED_LEVEL, ServerRunState, StateCategory
 from milonga.core.errors import ErrorReport
 from milonga.core.model import HostSnapshot, ServerSnapshot
 from milonga.core.names import ServerName
@@ -235,12 +235,16 @@ class HostPanel(Panel):
     @staticmethod
     def _server_node(server: ServerSnapshot) -> TreeNode:
         detail = server.run_state.value.lower()
+        category = run_state_category(server.run_state)
+        if not server.info.is_controlled and server.run_state is ServerRunState.STOPPED:
+            # nobody asked for an uncontrolled server to run
+            category = StateCategory.INACTIVE
         return TreeNode(
             NodeKind.SERVER,
             str(server.name),
             server.name,
             detail=detail,
-            category=run_state_category(server.run_state),
+            category=category,
             tooltip=f"{server.name} · level {server.info.level}",
         )
 

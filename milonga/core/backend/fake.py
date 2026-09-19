@@ -254,7 +254,7 @@ class FakeBackend:
 
     def start_server(self, name: ServerName | str, *, starting: bool = False) -> None:
         server = self._server(self._as_server_name(name))
-        server.run_state = ServerRunState.STARTING if starting else ServerRunState.RUNNING
+        server.run_state = ServerRunState.CHANGING if starting else ServerRunState.RUNNING
         server.pid = next(self._pids)
         server.started_at = datetime.now()
         server.stopped_at = None
@@ -791,6 +791,9 @@ class FakeBackend:
         entry = self._live(device)
         if entry.class_name == STARTER_CLASS:
             return self._starter_command(entry, command, argin)
+        if entry.class_name == ADMIN_CLASS and command == "Kill":
+            self.stop_server(entry.server)
+            return None
         handler = entry.handlers.get(command)
         if handler is not None:
             return handler(self, argin)
@@ -989,7 +992,7 @@ class FakeBackend:
         if not servers:
             return TangoState.OFF.code
         states = {server.run_state for server in servers}
-        if ServerRunState.STARTING in states:
+        if ServerRunState.CHANGING in states:
             return TangoState.MOVING.code
         if states == {ServerRunState.RUNNING}:
             return TangoState.ON.code
@@ -1042,7 +1045,10 @@ class FakeBackend:
                 started.host = host
                 self.start_server(started.name)
             case "DevStop":
-                self.stop_server(str(argin))
+                target = self._server(ServerName.parse(str(argin)))
+                if not (target.controlled and target.level):
+                    raise CommandFailed(f"{target.name}: Server  not controlled !")
+                self.stop_server(target.name)
             case "HardKillServer":
                 self.stop_server(str(argin), hard=True)
             case "DevStartAll":

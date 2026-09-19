@@ -114,15 +114,31 @@ def test_uncontrolled_servers_do_not_decide_the_host_state() -> None:
     assert build_host_snapshot("h", lines).state is HostState.ALL_RUNNING
 
 
-def test_database_only_servers_are_kept_as_uncontrolled() -> None:
+def test_unreported_servers_are_kept_as_uncontrolled() -> None:
+    from milonga.core.model import ServerInfo, ServerSnapshot
+
+    extra = ServerSnapshot(ServerInfo(ServerName("B", "1"), "h"), ServerRunState.RUNNING)
     snapshot = build_host_snapshot(
         "h",
         [ServerLine(ServerName("A", "1"), ServerRunState.RUNNING, True, 1)],
-        known_servers=[ServerName("B", "1")],
+        uncontrolled=[extra],
     )
     assert len(snapshot.servers) == 2
-    assert snapshot.servers[0].name == ServerName("B", "1")
-    assert snapshot.servers[0].info.is_controlled is False
+    assert snapshot.servers[0] is extra
+    assert snapshot.state is HostState.ALL_RUNNING
+
+
+async def test_an_uncontrolled_server_is_probed_through_its_admin_device(
+    control: StarterControl, backend: FakeBackend
+) -> None:
+    server = backend.register_server("Spare/one", HOST, running=True)
+    snapshot = await control.host_snapshot(HOST)
+    probed = next(item for item in snapshot.servers if item.name == server.name)
+    assert probed.run_state is ServerRunState.RUNNING
+    assert not probed.info.is_controlled
+    backend.stop_server(server.name)
+    stopped = await control.probe_server(HOST, server.name)
+    assert stopped.run_state is ServerRunState.STOPPED
 
 
 @pytest.mark.parametrize(
@@ -131,7 +147,7 @@ def test_database_only_servers_are_kept_as_uncontrolled() -> None:
         ([ServerRunState.RUNNING, ServerRunState.RUNNING], HostState.ALL_RUNNING),
         ([ServerRunState.STOPPED, ServerRunState.STOPPED], HostState.ALL_STOPPED),
         ([ServerRunState.RUNNING, ServerRunState.STOPPED], HostState.MIXED),
-        ([ServerRunState.RUNNING, ServerRunState.STARTING], HostState.STARTING),
+        ([ServerRunState.RUNNING, ServerRunState.CHANGING], HostState.CHANGING),
     ],
 )
 def test_host_state_aggregation(states: list[ServerRunState], expected: HostState) -> None:
@@ -156,3 +172,84 @@ def test_a_starter_with_nothing_to_control_is_idle() -> None:
     uncontrolled = [ServerLine(ServerName("A", "1"), ServerRunState.STOPPED, False, 0)]
     assert build_host_snapshot("h", uncontrolled).state is HostState.IDLE
     assert build_host_snapshot("h", []).state is HostState.IDLE
+
+
+async def test_an_uncontrolled_server_is_stopped_through_its_admin_device(
+    control: StarterControl, backend: FakeBackend
+) -> None:
+    spare = backend.register_server("Spare/two", HOST, running=True)
+    await control.stop_server(HOST, spare.name)
+    assert backend.servers[spare.name].run_state is ServerRunState.STOPPED
+
+
+async def test_restart_confirms_the_server_came_back(backend: FakeBackend) -> None:
+    control = StarterControl(backend, exit_grace=0.0)
+    before = backend.servers[TEST].pid
+    await control.restart_server(HOST, TEST)
+    assert backend.servers[TEST].run_state is ServerRunState.RUNNING
+    assert backend.servers[TEST].pid != before
+
+
+async def test_a_start_that_never_lands_is_reported_not_repeated(
+    backend: FakeBackend,
+) -> None:
+    from milonga.core.errors import CommandFailed
+
+    control = StarterControl(backend, start_timeout=0.05)
+    backend.stop_server(TEST)
+    starts: list[str] = []
+    original = backend.start_server
+    backend.start_server = lambda name, **kwargs: starts.append(str(name))  # type: ignore[method-assign]
+    try:
+        with pytest.raises(CommandFailed, match="did not register within"):
+            await control.start_and_confirm(HOST, TEST)
+    finally:
+        backend.start_server = original  # type: ignore[method-assign]
+    assert starts == [str(TEST)]
+
+
+async def test_a_server_the_starter_does_not_list_waits_out_the_grace(
+    backend: FakeBackend,
+) -> None:
+    import time
+
+    elsewhere = backend.register_server("Spare/three", "id09-srv-01", running=True)
+    control = StarterControl(backend, exit_grace=0.2)
+    await control.stop_server(HOST, elsewhere.name)
+    began = time.monotonic()
+    await control.start_server(HOST, elsewhere.name)
+    assert time.monotonic() - began >= 0.2
+
+
+async def test_a_listed_uncontrolled_server_waits_on_the_starter(backend: FakeBackend) -> None:
+    import time
+
+    spare = backend.register_server("Spare/four", HOST, running=True)
+    control = StarterControl(backend, exit_grace=5.0)
+    await control.stop_server(HOST, spare.name)
+    began = time.monotonic()
+    await control.start_server(HOST, spare.name)
+    assert time.monotonic() - began < 1.0
+
+
+async def test_a_controlled_server_waits_on_the_starter_not_the_grace(
+    backend: FakeBackend,
+) -> None:
+    import time
+
+    control = StarterControl(backend, exit_grace=5.0)
+    await control.stop_server(HOST, TEST)
+    began = time.monotonic()
+    await control.start_server(HOST, TEST)
+    assert time.monotonic() - began < 1.0
+    assert backend.servers[TEST].run_state is ServerRunState.RUNNING
+
+
+async def test_a_server_stopped_elsewhere_starts_at_once(backend: FakeBackend) -> None:
+    import time
+
+    control = StarterControl(backend, exit_grace=5.0)
+    backend.stop_server(TEST)
+    began = time.monotonic()
+    await control.start_server(HOST, TEST)
+    assert time.monotonic() - began < 1.0

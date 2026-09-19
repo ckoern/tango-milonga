@@ -378,6 +378,22 @@ Starter, and each covered by a test:
   moves properties, attribute properties and alias, then deletes the old one.
 * The Starter of Tango 10 has no notification-daemon attribute or command, and
   reports a missing log file as an error.
+* **The `Servers` line is `name\tstate\tcontrolled\tlevel\t…`**, tab-separated,
+  with a fifth field the parser ignores. The parser was written tolerant before
+  a real line was seen, and read the real one correctly.
+* **The Starter starts any server but stops only the ones it controls.** An
+  uncontrolled server is stopped through its admin device's `Kill`, which is
+  what the Starter does itself.
+* **The Starter keeps no visible state for servers it does not control**, so
+  their state comes from their admin device: exported and answering a ping
+  means running.
+* **A start issued too soon after a stop is dropped.** A server unregisters
+  before its process exits, and the Starter needs a moment longer to notice.
+  For a controlled server, a restart waits until the Starter itself reports
+  the server stopped. For an uncontrolled one there is nothing to wait on but
+  a measured grace (a start 2.3 s after unregistering was dropped, 4.4 s
+  worked). A server is never started twice to make up for a slow start: a
+  second start of a slow server would be a second process.
 
 ## 7. Risks and where they are handled
 

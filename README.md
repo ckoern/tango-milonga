@@ -101,8 +101,8 @@ with a preview and an undo.
 python3 -m venv .venv
 .venv/bin/pip install -e '.[dev,gui,tango]'
 
-.venv/bin/pytest                    # 298 tests, no control system needed
-.venv/bin/pytest --integration      # plus 20 against the database in TANGO_HOST
+.venv/bin/pytest                    # 306 tests, no control system needed
+.venv/bin/pytest --integration      # plus 27 against the control system in TANGO_HOST
 .venv/bin/mypy milonga tests
 .venv/bin/ruff check .
 ```
@@ -110,6 +110,15 @@ python3 -m venv .venv
 The integration tests read whatever the control system holds, and write only
 inside a sandbox — a server, devices, a class, an alias and a free-property
 object all named `MilongaTest` — which is removed before and after every test.
+Tests against a running `sys/tg_test/1` change its configuration and polling
+and check the database holds what it held before.
+
+Starting and stopping real processes is tested only when you name a server the
+tests may use, which is left in the run state it was found in:
+
+```bash
+MILONGA_STARTER_SERVER=TangoTest/test .venv/bin/pytest --integration
+```
 
 ## Demo system
 

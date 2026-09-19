@@ -203,7 +203,7 @@ class PollableKind(StrEnum):
 
 class ServerRunState(StrEnum):
     RUNNING = "RUNNING"
-    STARTING = "STARTING"
+    CHANGING = "CHANGING"
     NOT_RESPONDING = "NOT_RESPONDING"
     STOPPED = "STOPPED"
     UNKNOWN = "UNKNOWN"
@@ -211,7 +211,7 @@ class ServerRunState(StrEnum):
 
 class HostState(StrEnum):
     ALL_RUNNING = "ALL_RUNNING"
-    STARTING = "STARTING"
+    CHANGING = "CHANGING"
     MIXED = "MIXED"
     ALL_STOPPED = "ALL_STOPPED"
     IDLE = "IDLE"

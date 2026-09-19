@@ -246,7 +246,7 @@ class ServerSnapshot:
 
     @property
     def running(self) -> bool:
-        return self.run_state in (ServerRunState.RUNNING, ServerRunState.STARTING)
+        return self.run_state in (ServerRunState.RUNNING, ServerRunState.CHANGING)
 
 
 @dataclass(frozen=True, slots=True)
@@ -282,8 +282,8 @@ def aggregate_host_state(
     if not controlled:
         return HostState.IDLE
     states = {server.run_state for server in controlled}
-    if ServerRunState.STARTING in states:
-        return HostState.STARTING
+    if ServerRunState.CHANGING in states:
+        return HostState.CHANGING
     if states == {ServerRunState.RUNNING}:
         return HostState.ALL_RUNNING
     if states <= {ServerRunState.STOPPED, ServerRunState.UNKNOWN}:

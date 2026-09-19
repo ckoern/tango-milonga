@@ -109,7 +109,7 @@ _CATEGORY_TOKEN: dict[StateCategory, str] = {
 
 _RUN_STATE_CATEGORY: dict[ServerRunState, StateCategory] = {
     ServerRunState.RUNNING: StateCategory.NOMINAL,
-    ServerRunState.STARTING: StateCategory.BUSY,
+    ServerRunState.CHANGING: StateCategory.BUSY,
     ServerRunState.NOT_RESPONDING: StateCategory.FAULT,
     ServerRunState.STOPPED: StateCategory.FAULT,
     ServerRunState.UNKNOWN: StateCategory.UNKNOWN,
@@ -117,7 +117,7 @@ _RUN_STATE_CATEGORY: dict[ServerRunState, StateCategory] = {
 
 _HOST_STATE_CATEGORY: dict[HostState, StateCategory] = {
     HostState.ALL_RUNNING: StateCategory.NOMINAL,
-    HostState.STARTING: StateCategory.BUSY,
+    HostState.CHANGING: StateCategory.BUSY,
     HostState.MIXED: StateCategory.WARNING,
     HostState.ALL_STOPPED: StateCategory.INACTIVE,
     HostState.IDLE: StateCategory.INACTIVE,

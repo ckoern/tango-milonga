@@ -15,7 +15,7 @@ from milonga.core.services.starter_protocol import (
     [
         ("TangoTest/test\tON\t1\t3", ServerRunState.RUNNING, 3),
         ("TangoTest/test   OFF   1   2", ServerRunState.STOPPED, 2),
-        ("TangoTest/test MOVING 1 1", ServerRunState.STARTING, 1),
+        ("TangoTest/test MOVING 1 1", ServerRunState.CHANGING, 1),
         ("TangoTest/test\tFAULT\t0\t0", ServerRunState.NOT_RESPONDING, 0),
     ],
 )
@@ -49,3 +49,25 @@ def test_format_round_trips() -> None:
 
 def test_accepts_a_single_string_blob() -> None:
     assert len(parse_server_lines("A/1\tON\t1\t1\nB/1\tOFF\t1\t2")) == 2
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("TangoTest/test\tON\t1\t1\t1", ServerRunState.RUNNING),
+        ("TangoTest/test\tMOVING\t1\t1\t1", ServerRunState.CHANGING),
+        ("TangoTest/test\tFAULT\t1\t1\t0", ServerRunState.STOPPED),
+        ("TangoTest/test\tFAULT\t1\t1\t1", ServerRunState.NOT_RESPONDING),
+        ("TangoTest/test\tON\t0\t0\t1", ServerRunState.RUNNING),
+    ],
+)
+def test_the_lines_a_tango_10_starter_sends(text: str, expected: ServerRunState) -> None:
+    """Every line here was read from a running Starter during a stop and a start."""
+    line = parse_server_line(text)
+    assert line is not None and line.run_state is expected
+
+
+def test_a_stopped_controlled_server_round_trips_as_the_starter_writes_it() -> None:
+    stopped = ServerLine(ServerName("TangoTest", "test"), ServerRunState.STOPPED, True, 1)
+    assert format_server_line(stopped) == "TangoTest/test\tFAULT\t1\t1\t0"
+    assert parse_server_line(format_server_line(stopped)) == stopped
