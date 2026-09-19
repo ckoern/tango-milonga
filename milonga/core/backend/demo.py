@@ -32,7 +32,17 @@ def _build_beamline(backend: FakeBackend) -> None:
     for name, level in (("Databaseds/2", 1), ("TangoAccessControl/1", 1), ("PyAlarm/id09", 3)):
         backend.register_server(name, "id09-srv-02", level=level, controlled=True, running=True)
     backend.register_server("IcePAP/id09", "id09-srv-02", level=2, controlled=True, running=True)
-    backend.register_server("Vacuum/id09-front", "id09-srv-02", level=2, controlled=True)
+    vacuum = backend.register_server(
+        "Vacuum/id09-front", "id09-srv-02", level=2, controlled=True
+    )
+    vacuum.log.extend(
+        [
+            "12:41:02  starting Vacuum/id09-front (level 2, attempt 1)",
+            "12:41:05  failed   serial port /dev/ttyR03: device or resource busy",
+            "12:41:05  process exited with code 1",
+            "12:41:35  auto-restart window expires in 24 min",
+        ]
+    )
     backend.register_server(
         "LimaCCDs/pilatus", "id09-srv-02", level=2, controlled=True, running=True
     )

@@ -17,6 +17,7 @@ from milonga.core.commands.properties import (
     PutProperties,
     RenameProperty,
 )
+from milonga.core.commands.servers import SetServerControl
 
 __all__ = [
     "CONFIG_FIELDS",
@@ -33,5 +34,6 @@ __all__ = [
     "RenameProperty",
     "RevertUnsupported",
     "SetAttributeConfig",
+    "SetServerControl",
     "config_values",
 ]

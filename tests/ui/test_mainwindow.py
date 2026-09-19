@@ -20,34 +20,40 @@ async def window(context: AppContext, tokens: Tokens) -> MainWindow:
     return main
 
 
+async def test_the_system_overview_opens_at_startup(window: MainWindow) -> None:
+    assert window.tabs.count() == 1
+    assert window.tabs.tabText(0) == "System"
+
+
 async def test_opening_a_target_adds_one_tab(window: MainWindow) -> None:
     window.open_target(DEVICE)
     window.open_target(DEVICE)
     await window.idle()
-    assert window.tabs.count() == 1
-    assert window.tabs.tabText(0) == "sys/tg_test/1"
+    assert window.tabs.count() == 2
+    assert window.tabs.tabText(1) == "sys/tg_test/1"
 
 
 async def test_two_targets_are_two_tabs(window: MainWindow) -> None:
     window.open_target(DEVICE)
     window.open_target(SERVER)
     await window.idle()
-    assert window.tabs.count() == 2
-    assert set(window.open_panels) == {DEVICE, SERVER}
+    assert window.tabs.count() == 3
+    assert {DEVICE, SERVER} <= set(window.open_panels)
 
 
 async def test_closing_a_tab_forgets_the_panel(window: MainWindow) -> None:
     window.open_target(DEVICE)
     await window.idle()
-    window.tabs.tabCloseRequested.emit(0)
-    assert window.tabs.count() == 0
-    assert window.open_panels == ()
+    window.tabs.tabCloseRequested.emit(1)
+    await window.idle()
+    assert window.tabs.count() == 1
+    assert DEVICE not in window.open_panels
 
 
 async def test_navigator_activation_opens_a_panel(window: MainWindow) -> None:
     window.navigator.targetActivated.emit(SERVER)
     await window.idle()
-    assert window.tabs.count() == 1
+    assert SERVER in window.open_panels
 
 
 async def test_journal_records_the_session(window: MainWindow, context: AppContext) -> None:
@@ -72,7 +78,7 @@ async def test_inspector_open_button_opens_the_panel(window: MainWindow) -> None
     window.navigator.nodeSelected.emit(node)
     window.inspector.open_button.click()
     await window.idle()
-    assert window.tabs.count() == 1
+    assert window.tabs.count() == 2
 
 
 async def test_refresh_reloads_the_current_panel(

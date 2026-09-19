@@ -19,8 +19,9 @@ def app(qapp: QApplication) -> QApplication:
     return qapp
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def tokens(app: QApplication) -> Tokens:
+    """Applied once: setting a stylesheet re-polishes every widget alive."""
     return apply_theme(app, Theme.LIGHT)
 
 

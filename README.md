@@ -16,17 +16,19 @@ replacing the Java tools *Astor* (process control through Starter devices) and
 
 ## Status
 
-Milestones 0 to 4 of the plan in the design concept are implemented: the domain
-layer, the application shell, the read path of Jive, the live device panel, and
-the write path — property editing and attribute configuration, with preview and
-undo. The PyTango backend is not written yet, so the application currently runs
-against the in-memory demo system.
+Milestones 0 to 5 of the plan in the design concept are implemented: the domain
+layer, the application shell, the read path of Jive, the live device panel, the
+write path, and Astor — the system overview, the host panel with startup levels,
+Starter control and the log viewer. The PyTango backend is not written yet, so
+the application currently runs against the in-memory demo system.
+
+![System overview](docs/screenshot-overview.png)
+
+![Host panel with startup levels and the Starter log](docs/screenshot-host.png)
 
 ![Device panel with a live spectrum](docs/screenshot-device.png)
 
 ![Image attribute with its colour scale](docs/screenshot-image.png)
-
-![Host tree and host panel](docs/screenshot-hosts.png)
 
 ![Property editing with pending changes](docs/screenshot-properties.png)
 
@@ -48,13 +50,14 @@ milonga/ui/                                 the only package importing Qt
   tasks.py                                  coroutines tied to a widget's lifetime
   navigator.py                              one tree, six scopes, lazily loaded
   live.py                                   watches held only while a view is shown
+  live_hosts.py                             one subscription per host, whole server table
   write.py                                  preview, confirm, apply, journal
   property_editor.py                        editable properties with pending state
   dialogs.py                                diff, confirmation, values, history
   format.py                                 Tango values to text and back
   plots.py                                  spectrum and image views
   models/                                   lazy tree, generic table, live values
-  panels/                                   device, server, class, object, host
+  panels/                                   overview, host, device, server, class
   mainwindow.py, search.py                  window chrome and the command palette
 ```
 
@@ -66,7 +69,7 @@ milonga/ui/                                 the only package importing Qt
 .venv/bin/python -m milonga.cli sys/tg_test/1         # open a device at startup
 ```
 
-Keys: `Ctrl+K` search, `F5` refresh the current panel.
+Keys: `Ctrl+1` system overview, `Ctrl+K` search, `F5` refresh the current panel.
 
 The device panel is live: scalar values arrive by Tango events while the panel
 is on screen and stop when it is hidden. A spectrum or image is watched only
@@ -77,13 +80,18 @@ Database edits are held in the table until **Apply**, which previews every
 change as a diff, asks again for anything destructive, and records what it
 wrote in the journal with an undo.
 
+The system overview and the host panel follow the control system live: one
+subscription to each Starter's `Servers` attribute carries the whole server
+table for that host. Starting a server is one click; stopping, restarting and
+killing ask first, and a hard kill wants the host name typed back.
+
 ## Development
 
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -e '.[dev,gui]'
 
-.venv/bin/pytest          # 219 tests, no control system needed
+.venv/bin/pytest          # 244 tests, no control system needed
 .venv/bin/mypy milonga tests
 .venv/bin/ruff check .
 ```

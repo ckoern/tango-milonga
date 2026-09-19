@@ -6,6 +6,7 @@ from dataclasses import fields, replace
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -15,6 +16,7 @@ from PyQt6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QPlainTextEdit,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -314,3 +316,42 @@ class AttributeConfigDialog(QDialog):
 
 def _colour(tokens: Tokens, kind: DiffKind) -> QColor:
     return QColor(getattr(tokens, _DIFF_COLOUR[kind]))
+
+
+class LevelDialog(QDialog):
+    """What a Starter does with a server: at which level, or not at all."""
+
+    def __init__(
+        self,
+        server: str,
+        level: int,
+        controlled: bool,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(f"Startup level of {server}")
+        self.level_box = QSpinBox(self)
+        self.level_box.setRange(1, 20)
+        self.level_box.setValue(max(level, 1))
+        self.controlled_box = QCheckBox("Started by the Starter", self)
+        self.controlled_box.setChecked(controlled and level > 0)
+        self.controlled_box.toggled.connect(self.level_box.setEnabled)
+        self.level_box.setEnabled(self.controlled_box.isChecked())
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Ok,
+            parent=self,
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+        layout = QFormLayout(self)
+        layout.addRow("Controlled", self.controlled_box)
+        layout.addRow("Startup level", self.level_box)
+        layout.addRow(buttons)
+
+    def level(self) -> int:
+        return self.level_box.value() if self.controlled_box.isChecked() else 0
+
+    def controlled(self) -> bool:
+        return self.controlled_box.isChecked()

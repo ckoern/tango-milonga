@@ -229,3 +229,32 @@ def test_diff_lines_read_as_text() -> None:
     assert str(DiffLine("dev", "P", DiffKind.ADDED)) == "+ dev · P = ∅"
     assert "1 → 2" in str(changed)
     assert Diff((added, changed)).text().count("\n") == 1
+
+
+async def test_changing_what_a_starter_controls(
+    runner: CommandRunner, backend: FakeBackend
+) -> None:
+    from milonga.core.commands import SetServerControl
+    from milonga.core.names import ServerName
+
+    server = ServerName.parse("Vacuum/id09-front")
+    command = SetServerControl(server, "id09-srv-02", level=5)
+    diff = await runner.run([command])
+    assert {line.name for line in diff.changes} == {"startup level"}
+    assert (await backend.get_server_info(server)).level == 5
+    await runner.undo(command)
+    assert (await backend.get_server_info(server)).level == 2
+
+
+async def test_moving_a_server_updates_both_starters(
+    runner: CommandRunner, backend: FakeBackend
+) -> None:
+    from milonga.core.commands import SetServerControl
+    from milonga.core.names import ServerName
+
+    server = ServerName.parse("TangoTest/test")
+    command = SetServerControl(server, "id09-srv-01", level=2)
+    backend.call_log.clear()
+    await runner.run([command])
+    assert (await backend.get_server_info(server)).host == "id09-srv-01"
+    assert backend.call_log.count("execute_command") == 2

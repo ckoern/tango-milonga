@@ -131,6 +131,7 @@ class MainWindow(QMainWindow):
         self._build_toolbar()
         self._build_status_bar()
         self.navigator.refresh()
+        self.open_target(Target.system())
         context.journal.info(f"Connected to {context.tango_host}")
 
     # --------------------------------------------------------------------- panels
@@ -234,6 +235,11 @@ class MainWindow(QMainWindow):
 
         host_label = QLabel(f"  {self.context.tango_host}  ")
         toolbar.addWidget(host_label)
+
+        system = QAction("System", self)
+        system.setShortcut(QKeySequence("Ctrl+1"))
+        system.triggered.connect(lambda: self.open_target(Target.system()))
+        toolbar.addAction(system)
 
         search = QAction("Search…", self)
         search.setShortcut(QKeySequence("Ctrl+K"))

@@ -19,6 +19,7 @@ from milonga.core.store import SystemStore
 
 
 class TargetKind(StrEnum):
+    SYSTEM = "system"
     DEVICE = "device"
     SERVER = "server"
     CLASS = "class"
@@ -52,6 +53,10 @@ class Target:
     @classmethod
     def host(cls, host: str) -> "Target":
         return cls(TargetKind.HOST, host)
+
+    @classmethod
+    def system(cls) -> "Target":
+        return cls(TargetKind.SYSTEM, "system")
 
     @property
     def uri(self) -> str:

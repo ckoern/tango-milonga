@@ -123,3 +123,13 @@ def test_host_state_aggregation(states: list[ServerRunState], expected: HostStat
         for index, state in enumerate(states)
     ]
     assert build_host_snapshot("h", lines).state is expected
+
+
+async def test_start_all_walks_the_levels_in_order(
+    control: StarterControl, backend: FakeBackend
+) -> None:
+    await control.stop_all(await control.host_snapshot(HOST))
+    stopped = await control.host_snapshot(HOST)
+    assert stopped.state is HostState.ALL_STOPPED
+    await control.start_all(stopped)
+    assert (await control.host_snapshot(HOST)).state is HostState.ALL_RUNNING

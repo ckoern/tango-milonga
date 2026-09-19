@@ -56,12 +56,12 @@ def build_host_snapshot(
     )
 
 
-def unreachable_host(host: str, error: TangoError, *, group: str = "") -> HostSnapshot:
+def unreachable_host(
+    host: str, error: TangoError | ErrorReport, *, group: str = ""
+) -> HostSnapshot:
+    report = error if isinstance(error, ErrorReport) else ErrorReport.from_exception(error)
     return HostSnapshot(
-        name=host,
-        starter=starter_device(host),
-        group=group,
-        error=ErrorReport.from_exception(error),
+        name=host, starter=starter_device(host), group=group, error=report
     )
 
 
@@ -131,6 +131,15 @@ class StarterControl:
 
     async def stop_level(self, host: str, level: int) -> None:
         await self._command(host, "DevStopAll", level)
+
+    async def start_all(self, snapshot: HostSnapshot) -> None:
+        """Levels come up in order, the way the Starter boots a host."""
+        for level in snapshot.levels:
+            await self.start_level(snapshot.name, level)
+
+    async def stop_all(self, snapshot: HostSnapshot) -> None:
+        for level in reversed(snapshot.levels):
+            await self.stop_level(snapshot.name, level)
 
     async def running_servers(self, host: str) -> tuple[ServerName, ...]:
         result = await self._command(host, "DevGetRunningServers", True)

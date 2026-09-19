@@ -101,18 +101,23 @@ async def test_host_panel_summarises_the_starter(
     context: AppContext, tokens: Tokens
 ) -> None:
     panel = HostPanel(context, tokens, Target.host("id09-srv-02"))
+    panel.refresh()
     await _ready(panel)
     assert panel.header.chip.text() == "MIXED"
-    assert panel.servers.rowCount() == 7
+    snapshot = panel.snapshot
+    assert snapshot is not None and len(snapshot.servers) == 7
+    await panel.aclose()
 
 
 async def test_host_panel_of_an_unreachable_host_shows_the_error(
     context: AppContext, tokens: Tokens
 ) -> None:
     panel = HostPanel(context, tokens, Target.host("id09-vac-01"))
+    panel.refresh()
     await _ready(panel)
     assert panel.header.chip.text() == "UNREACHABLE"
     assert panel.banner.isVisibleTo(panel) is True
+    await panel.aclose()
 
 
 @pytest.mark.parametrize(

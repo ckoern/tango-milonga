@@ -6,6 +6,7 @@ from milonga.ui.panels.class_panel import ClassPanel
 from milonga.ui.panels.device import DevicePanel
 from milonga.ui.panels.host import HostPanel
 from milonga.ui.panels.object_panel import ObjectPanel
+from milonga.ui.panels.overview import OverviewPanel
 from milonga.ui.panels.server import ServerPanel
 from milonga.ui.theme import Tokens
 
@@ -14,6 +15,7 @@ __all__ = [
     "DevicePanel",
     "HostPanel",
     "ObjectPanel",
+    "OverviewPanel",
     "Panel",
     "ServerPanel",
     "create_panel",
@@ -32,3 +34,5 @@ def create_panel(context: AppContext, tokens: Tokens, target: Target) -> Panel:
             return ObjectPanel(context, tokens, target)
         case TargetKind.HOST:
             return HostPanel(context, tokens, target)
+        case TargetKind.SYSTEM:
+            return OverviewPanel(context, tokens, target)
