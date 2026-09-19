@@ -44,9 +44,10 @@ async def test_write_to_read_only_attribute_fails(backend: FakeBackend) -> None:
         await backend.write_attribute(TEST_DEVICE, "throughput", 1.0)
 
 
-async def test_unknown_attribute_raises(backend: FakeBackend) -> None:
-    with pytest.raises(ObjectNotFound):
-        await backend.read_attributes(TEST_DEVICE, ["nope"])
+async def test_an_unknown_attribute_fails_alone_in_a_batch(backend: FakeBackend) -> None:
+    good, bad = await backend.read_attributes(TEST_DEVICE, ["double_scalar", "nope"])
+    assert good.ok
+    assert bad.error is not None and bad.error.reason == "API_AttrNotFound"
 
 
 async def test_unreachable_host_hides_its_devices(backend: FakeBackend) -> None:

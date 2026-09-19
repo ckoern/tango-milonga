@@ -56,7 +56,7 @@ class ScopeLoader:
         backend = self._context.backend
         match self.scope:
             case Scope.HOSTS:
-                hosts = await backend.get_host_list()
+                hosts = await self._context.control.controlled_hosts()
                 arranged = self._context.groups.arrange(hosts)
                 return [
                     TreeNode(
@@ -352,7 +352,7 @@ class Navigator(QWidget):
 
     def new_server(self) -> None:
         self._runner.run(
-            self._context.backend.get_host_list(), on_result=self._ask_new_server
+            self._context.control.controlled_hosts(), on_result=self._ask_new_server
         )
 
     def _ask_new_server(self, hosts: tuple[str, ...]) -> None:

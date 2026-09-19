@@ -35,7 +35,7 @@ explicit_package_bases = true
 mypy_path = "."
 
 [[tool.mypy.overrides]]
-module = ["qasync.*", "pyqtgraph.*"]
+module = ["qasync.*", "pyqtgraph.*", "tango.*"]
 ignore_missing_imports = true
 
 [tool.ruff]

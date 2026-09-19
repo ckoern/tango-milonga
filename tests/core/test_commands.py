@@ -246,7 +246,7 @@ async def test_changing_what_a_starter_controls(
     assert (await backend.get_server_info(server)).level == 2
 
 
-async def test_moving_a_server_updates_both_starters(
+async def test_a_host_change_tells_both_starters_to_reread(
     runner: CommandRunner, backend: FakeBackend
 ) -> None:
     from milonga.core.commands import SetServerControl

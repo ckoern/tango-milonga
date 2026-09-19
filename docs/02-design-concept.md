@@ -51,6 +51,13 @@ There is no synchronous entry point to call by accident.
          └───────────────────────────────────────────────┘
 ```
 
+* **Measured against PyTango 10.3, and changed:** PyTango's asyncio green mode is
+  `loop.run_in_executor` over a single global thread pool — the starvation this
+  section exists to prevent — and it creates and installs its own event loop
+  when first used outside a running one. The backend therefore calls the
+  synchronous API in thread pools it owns, one for the database and one per
+  server host, and a host that times out repeatedly is short-circuited for a
+  while instead of occupying threads.
 * `qasync` runs one asyncio loop **on** the Qt event loop: no cross-thread data
   races in application state, cancellation is `task.cancel()`, and timeouts are
   `asyncio.timeout(...)` instead of ad-hoc watchdogs.
@@ -343,11 +350,40 @@ versions. Two parts of it are deliberately not built:
 
 ---
 
-## 6. Risks and where they are handled
+## 6. What the real control system taught
+
+Found by running against a Tango 10 database (PyDatabaseds on SQLite) with a
+Starter, and each covered by a test:
+
+* **A Starter controls the servers that last ran on its host**, not the ones
+  whose server record names that host. The record supplies only the mode and
+  the startup level. Changing a host there does not move a server; starting it
+  on the other host does.
+* **Deleting a server leaves its server record behind**, and a later server of
+  the same name inherits its startup level. `delete_server` removes both.
+* **`get_server_info` cannot parse an unassigned server** — the database answers
+  blanks, which the C++ client rejects. The raw `DbGetServerInfo` is read and
+  parsed tolerantly.
+* **Names differ in case between calls** (`tango/admin/DESKTOP-H2AI4S9` and
+  `tango/admin/desktop-h2ai4s9`), so names compare without regard to case and
+  keep their spelling.
+* **Event criteria are often missing**: a numeric attribute without change
+  criteria refuses change-event subscription, and the monitor falls back to
+  polling it, as designed.
+* **The first event arrives on the subscribing thread** before
+  `subscribe_event` returns, so marshalling onto the loop is not optional.
+* **A batch read reports a bad attribute name in that attribute's value**
+  instead of failing the batch. The in-memory backend now does the same.
+* There is no device rename in the database: renaming registers the new name,
+  moves properties, attribute properties and alias, then deletes the old one.
+* The Starter of Tango 10 has no notification-daemon attribute or command, and
+  reports a missing log file as an error.
+
+## 7. Risks and where they are handled
 
 | Risk | Handling |
 |---|---|
-| PyTango asyncio green mode has gaps or surprises | Contained in `pytango_backend.py`; any call without a green variant goes to the executor. Measure per call, do not assume |
+| PyTango asyncio green mode has gaps or surprises | Measured: not used. Synchronous calls in owned, per-host pools, contained in `pytango_backend.py` |
 | `DeviceProxy()` construction blocks on unreachable hosts | Always constructed in the executor, cached per device, with a per-host circuit breaker after repeated failures |
 | Event callbacks from PyTango threads | Single funnel through `loop.call_soon_threadsafe`; no widget touched off-loop |
 | Dead host freezes the UI | Bounded per-host executor + per-call timeout + circuit breaker; the tree shows the host as unreachable instead of waiting |

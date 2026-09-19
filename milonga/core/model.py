@@ -203,6 +203,8 @@ class LoggingTarget:
     name: str = ""
 
     def __str__(self) -> str:
+        if self.target_type is LogTargetType.OTHER:
+            return self.name
         return f"{self.target_type}::{self.name}" if self.name else str(self.target_type)
 
 
@@ -278,7 +280,7 @@ def aggregate_host_state(
         return HostState.UNREACHABLE
     controlled = [server for server in servers if server.info.is_controlled]
     if not controlled:
-        return HostState.ALL_STOPPED
+        return HostState.IDLE
     states = {server.run_state for server in controlled}
     if ServerRunState.STARTING in states:
         return HostState.STARTING

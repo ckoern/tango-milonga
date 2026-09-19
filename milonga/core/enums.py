@@ -126,12 +126,25 @@ class TangoType(StrEnum):
     ENUM = "DevEnum"
     ENCODED = "DevEncoded"
     UCHAR = "DevUChar"
+    INT = "DevInt"
+    CONST_STRING = "ConstDevString"
+    PIPE_BLOB = "DevPipeBlob"
+    VAR_BOOLEAN_ARRAY = "DevVarBooleanArray"
+    VAR_CHAR_ARRAY = "DevVarCharArray"
     VAR_SHORT_ARRAY = "DevVarShortArray"
+    VAR_USHORT_ARRAY = "DevVarUShortArray"
     VAR_LONG_ARRAY = "DevVarLongArray"
+    VAR_ULONG_ARRAY = "DevVarULongArray"
+    VAR_LONG64_ARRAY = "DevVarLong64Array"
+    VAR_ULONG64_ARRAY = "DevVarULong64Array"
+    VAR_FLOAT_ARRAY = "DevVarFloatArray"
     VAR_DOUBLE_ARRAY = "DevVarDoubleArray"
     VAR_STRING_ARRAY = "DevVarStringArray"
+    VAR_STATE_ARRAY = "DevVarStateArray"
+    VAR_ENCODED_ARRAY = "DevVarEncodedArray"
     VAR_LONG_STRING_ARRAY = "DevVarLongStringArray"
     VAR_DOUBLE_STRING_ARRAY = "DevVarDoubleStringArray"
+    UNKNOWN = "Unknown"
 
     @property
     def numeric(self) -> bool:
@@ -201,6 +214,7 @@ class HostState(StrEnum):
     STARTING = "STARTING"
     MIXED = "MIXED"
     ALL_STOPPED = "ALL_STOPPED"
+    IDLE = "IDLE"
     UNREACHABLE = "UNREACHABLE"
 
 
@@ -217,6 +231,7 @@ class LogTargetType(StrEnum):
     CONSOLE = "console"
     FILE = "file"
     DEVICE = "device"
+    OTHER = "other"
 
 
 NOT_CONTROLLED_LEVEL: int = 0

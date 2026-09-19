@@ -2,6 +2,7 @@
 
 import re
 from dataclasses import dataclass
+from functools import total_ordering
 from typing import Self
 
 _SEGMENT = re.compile(r"^[A-Za-z0-9_\-.+*]+$")
@@ -18,13 +19,43 @@ def _check_segment(value: str, what: str) -> str:
     return value
 
 
-@dataclass(frozen=True, slots=True, order=True)
-class DeviceName:
+class _CaseInsensitive:
+    """Tango compares names without regard to case but keeps the spelling.
+
+    The database answers ``tango/admin/desktop-h2ai4s9`` from one call and
+    ``tango/admin/DESKTOP-H2AI4S9`` from another; both are the same device.
+    """
+
+    __slots__ = ()
+
+    def _key(self) -> tuple[str, ...]:
+        raise NotImplementedError
+
+    def __eq__(self, other: object) -> bool:
+        if type(other) is not type(self):
+            return NotImplemented
+        return self._key() == other._key()
+
+    def __hash__(self) -> int:
+        return hash((type(self).__name__, self._key()))
+
+    def __lt__(self, other: object) -> bool:
+        if type(other) is not type(self):
+            return NotImplemented
+        return self._key() < other._key()
+
+
+@total_ordering
+@dataclass(frozen=True, slots=True, eq=False)
+class DeviceName(_CaseInsensitive):
     """A three-field device name, ``domain/family/member``."""
 
     domain: str
     family: str
     member: str
+
+    def _key(self) -> tuple[str, ...]:
+        return (self.domain.lower(), self.family.lower(), self.member.lower())
 
     def __post_init__(self) -> None:
         _check_segment(self.domain, "domain")
@@ -42,12 +73,16 @@ class DeviceName:
         return f"{self.domain}/{self.family}/{self.member}"
 
 
-@dataclass(frozen=True, slots=True, order=True)
-class ServerName:
+@total_ordering
+@dataclass(frozen=True, slots=True, eq=False)
+class ServerName(_CaseInsensitive):
     """A device server instance, ``exec_name/instance`` (e.g. ``TangoTest/test``)."""
 
     exec_name: str
     instance: str
+
+    def _key(self) -> tuple[str, ...]:
+        return (self.exec_name.lower(), self.instance.lower())
 
     def __post_init__(self) -> None:
         _check_segment(self.exec_name, "server executable")
@@ -68,12 +103,16 @@ class ServerName:
         return f"{self.exec_name}/{self.instance}"
 
 
-@dataclass(frozen=True, slots=True, order=True)
-class AttributeRef:
+@total_ordering
+@dataclass(frozen=True, slots=True, eq=False)
+class AttributeRef(_CaseInsensitive):
     """A device attribute, the unit of monitoring."""
 
     device: DeviceName
     attribute: str
+
+    def _key(self) -> tuple[str, ...]:
+        return (*self.device._key(), self.attribute.lower())
 
     def __post_init__(self) -> None:
         _check_segment(self.attribute, "attribute name")

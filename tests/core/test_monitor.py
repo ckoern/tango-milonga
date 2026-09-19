@@ -114,3 +114,15 @@ async def test_late_watcher_gets_the_last_value_immediately(
     seen: list[EventData] = []
     await hub.watch(REF, seen.append)
     assert seen[0].value is not None and seen[0].value.value == 33.0
+
+
+async def test_a_failed_reading_becomes_an_error_event(
+    hub: MonitorHub, backend: FakeBackend
+) -> None:
+    ref = AttributeRef(DEVICE, "no_such_attribute")
+    backend.event_blocked.add(ref)
+    seen: list[EventData] = []
+    await hub.watch(ref, seen.append)
+    await asyncio.sleep(0.03)
+    assert seen and seen[0].error is not None
+    assert seen[0].value is None

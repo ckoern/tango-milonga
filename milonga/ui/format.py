@@ -156,8 +156,15 @@ def parse_command_argument(text: str, data_type: TangoType) -> Any:
 
 
 _ARRAY_ELEMENT: dict[TangoType, TangoType] = {
+    TangoType.VAR_BOOLEAN_ARRAY: TangoType.BOOLEAN,
+    TangoType.VAR_CHAR_ARRAY: TangoType.UCHAR,
     TangoType.VAR_SHORT_ARRAY: TangoType.SHORT,
+    TangoType.VAR_USHORT_ARRAY: TangoType.USHORT,
     TangoType.VAR_LONG_ARRAY: TangoType.LONG,
+    TangoType.VAR_ULONG_ARRAY: TangoType.ULONG,
+    TangoType.VAR_LONG64_ARRAY: TangoType.LONG64,
+    TangoType.VAR_ULONG64_ARRAY: TangoType.ULONG64,
+    TangoType.VAR_FLOAT_ARRAY: TangoType.FLOAT,
     TangoType.VAR_DOUBLE_ARRAY: TangoType.DOUBLE,
     TangoType.VAR_STRING_ARRAY: TangoType.STRING,
 }

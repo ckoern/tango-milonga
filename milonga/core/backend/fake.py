@@ -29,6 +29,7 @@ from milonga.core.enums import (
 from milonga.core.errors import (
     CommandFailed,
     DeviceUnreachable,
+    ErrorFrame,
     ErrorReport,
     ObjectNotFound,
     ReadOnlyError,
@@ -94,6 +95,9 @@ class FakeDevice:
 
 @dataclass(slots=True)
 class FakeServer:
+    """``host`` is where the server last ran, which is what a Starter lists;
+    ``record_host`` is what the server record in the database says."""
+
     name: ServerName
     host: str = ""
     level: int = 0
@@ -103,6 +107,7 @@ class FakeServer:
     started_at: datetime | None = None
     stopped_at: datetime | None = None
     log: list[str] = field(default_factory=list)
+    record_host: str = ""
 
 
 @dataclass(slots=True)
@@ -172,6 +177,7 @@ class FakeBackend:
             level,
             controlled,
             ServerRunState.RUNNING if running else ServerRunState.STOPPED,
+            record_host=host,
         )
         if running:
             server.pid = next(self._pids)
@@ -238,7 +244,6 @@ class FakeBackend:
             ("RunningServers", AttrDataFormat.SPECTRUM, TangoType.STRING),
             ("StoppedServers", AttrDataFormat.SPECTRUM, TangoType.STRING),
             ("HostState", AttrDataFormat.SCALAR, TangoType.SHORT),
-            ("NotifdState", AttrDataFormat.SCALAR, TangoType.STATE),
         ):
             device.attributes[name] = FakeAttribute(
                 AttributeSpec(name, data_type, data_format, max_dim_x=1024)
@@ -382,12 +387,14 @@ class FakeBackend:
     async def get_server_info(self, server: ServerName) -> ServerInfo:
         await self._io("get_server_info")
         entry = self._server(server)
-        return ServerInfo(entry.name, entry.host, entry.level, entry.controlled)
+        return ServerInfo(entry.name, entry.record_host, entry.level, entry.controlled)
 
     async def put_server_info(self, info: ServerInfo) -> None:
         await self._write("put_server_info")
-        entry = self.servers.get(info.name) or self.register_server(info.name, info.host)
-        entry.host = info.host
+        # A new host in the record does not move the server: a Starter lists
+        # the servers that ran on its host, as the Tango database does.
+        entry = self.servers.get(info.name) or self.register_server(info.name, "")
+        entry.record_host = info.host
         entry.level = info.level
         entry.controlled = info.controlled
         self._publish_host(entry.host)
@@ -752,7 +759,17 @@ class FakeBackend:
         if entry.class_name == STARTER_CLASS:
             self._refresh_starter(entry)
         self._refresh_intrinsic(entry)
-        return tuple(self._value_of(self._attribute(entry, name)) for name in names)
+        return tuple(self._read_one(entry, name) for name in names)
+
+    def _read_one(self, device: FakeDevice, name: str) -> AttributeValue:
+        """A batch read reports a bad name in its value instead of failing the batch."""
+        attribute = device.attributes.get(name)
+        if attribute is None:
+            report = ErrorReport(
+                f"attribute {name} not found", "API_AttrNotFound", (ErrorFrame("API_AttrNotFound"),)
+            )
+            return AttributeValue(name, quality=AttrQuality.INVALID, error=report)
+        return self._value_of(attribute)
 
     async def write_attribute(self, device: DeviceName, name: str, value: Any) -> None:
         await self._write("write_attribute")
@@ -998,7 +1015,6 @@ class FakeBackend:
             ("RunningServers", running),
             ("StoppedServers", stopped),
             ("HostState", self._host_state_code(host)),
-            ("NotifdState", TangoState.ON),
         ):
             attribute = device.attributes.get(name)
             if attribute is not None:
@@ -1022,7 +1038,9 @@ class FakeBackend:
         host = self._starter_host(device)
         match command:
             case "DevStart":
-                self.start_server(str(argin))
+                started = self._server(ServerName.parse(str(argin)))
+                started.host = host
+                self.start_server(started.name)
             case "DevStop":
                 self.stop_server(str(argin))
             case "HardKillServer":
@@ -1048,11 +1066,15 @@ class FakeBackend:
                     if server.run_state is not ServerRunState.RUNNING
                 )
             case "DevReadLog":
-                return "\n".join(self._server(ServerName.parse(str(argin))).log)
+                lines = self._server(ServerName.parse(str(argin))).log
+                if not lines:
+                    raise CommandFailed(
+                        "No such file or directory",
+                        frames=(ErrorFrame(f"Cannot open /var/tmp/ds.log/{argin}.log"),),
+                    )
+                return "\n".join(lines)
             case "UpdateServersInfo" | "ResetStatistics":
                 return None
-            case "NotifyDaemonState":
-                return TangoState.ON
             case _:
                 raise ObjectNotFound(f"Starter has no command {command!r}")
         return None

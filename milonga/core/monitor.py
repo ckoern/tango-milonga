@@ -188,8 +188,12 @@ class MonitorHub:
             report = ErrorReport.from_exception(error)
             self._deliver(channel, EventData(ref, event_type, error=report))
             return
-        if values:
-            self._deliver(channel, EventData(ref, event_type, values[0]))
+        if not values:
+            return
+        if values[0].error is not None:
+            self._deliver(channel, EventData(ref, event_type, error=values[0].error))
+            return
+        self._deliver(channel, EventData(ref, event_type, values[0]))
 
     def _deliver(self, channel: _Channel, event: EventData) -> None:
         if event.value is not None:

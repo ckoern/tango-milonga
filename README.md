@@ -16,12 +16,9 @@ replacing the Java tools *Astor* (process control through Starter devices) and
 
 ## Status
 
-Milestones 0 to 6 of the plan in the design concept are implemented: the domain
-layer, the application shell, the read path of Jive, the live device panel, the
-write path, Astor's process control, and the long tail — creation wizards,
-polling configuration, and per-process statistics and Tango versions. The
-PyTango backend is not written yet, so the application currently runs against
-the in-memory demo system.
+Milestones 0 to 6 of the plan in the design concept are implemented, and the
+application runs against a real Tango control system through PyTango — or
+against an in-memory demo system with `--demo`.
 
 ![System overview](docs/screenshot-overview.png)
 
@@ -41,6 +38,8 @@ the in-memory demo system.
 milonga/core/                               no Qt, no PyTango
   names.py, enums.py, errors.py, model.py   value objects and snapshots
   backend/protocol.py                       the async contract, coroutines only
+  backend/pytango_backend.py                the only module importing tango
+  backend/formats.py                        text formats Tango answers in
   backend/fake.py, backend/demo.py          in-memory control system, Starter included
   backend/readonly.py                       read-only enforcement in one wrapper
   commands/                                 mutations with preview, apply and revert
@@ -69,9 +68,11 @@ milonga/ui/                                 the only package importing Qt
 ## Running
 
 ```bash
-.venv/bin/python -m milonga.cli                       # demo control system
-.venv/bin/python -m milonga.cli --theme light --scope hosts
-.venv/bin/python -m milonga.cli sys/tg_test/1         # open a device at startup
+milonga                                   # the control system in TANGO_HOST / ~/.tangorc
+milonga --tango-host tango-cs:10000       # another one
+milonga --read-only                       # refuse every write
+milonga --demo                            # in-memory demo system, no Tango needed
+milonga --theme light --scope hosts sys/tg_test/1
 ```
 
 Keys: `Ctrl+1` system overview, `Ctrl+K` search, `Ctrl+N` create, `F5` refresh.
@@ -98,12 +99,17 @@ with a preview and an undo.
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install -e '.[dev,gui]'
+.venv/bin/pip install -e '.[dev,gui,tango]'
 
-.venv/bin/pytest          # 277 tests, no control system needed
+.venv/bin/pytest                    # 298 tests, no control system needed
+.venv/bin/pytest --integration      # plus 20 against the database in TANGO_HOST
 .venv/bin/mypy milonga tests
 .venv/bin/ruff check .
 ```
+
+The integration tests read whatever the control system holds, and write only
+inside a sandbox — a server, devices, a class, an alias and a free-property
+object all named `MilongaTest` — which is removed before and after every test.
 
 ## Demo system
 

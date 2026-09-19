@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
     QFormLayout,
     QHeaderView,
     QLabel,
+    QSizePolicy,
     QTableView,
     QVBoxLayout,
     QWidget,
@@ -102,6 +103,16 @@ class Panel(QWidget):
         return view
 
 
+MAX_FIELD = 72
+
+
+def _shorten(value: str) -> str:
+    if len(value) <= MAX_FIELD:
+        return value
+    keep = MAX_FIELD // 2 - 1
+    return f"{value[:keep]}…{value[-keep:]}"
+
+
 class InfoForm(QWidget):
     """A read-only field list, values in monospace."""
 
@@ -123,8 +134,12 @@ class InfoForm(QWidget):
                 label.setTextInteractionFlags(
                     label.textInteractionFlags().TextSelectableByMouse
                 )
+                # an IOR is hundreds of characters without a break; a label that
+                # sized itself to it would widen the whole window
+                label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
                 caption = QLabel(name, self)
                 caption.setStyleSheet(f"color: {self._tokens.ink_3};")
                 self._layout.addRow(caption, label)
                 self._values[name] = label
-            label.setText(value)
+            label.setText(_shorten(value))
+            label.setToolTip(value if len(value) > MAX_FIELD else "")

@@ -10,7 +10,7 @@ from typing import Any
 
 from milonga.core.backend.protocol import TangoBackend
 from milonga.core.enums import NOT_CONTROLLED_LEVEL, ServerRunState
-from milonga.core.errors import ErrorReport, TangoError
+from milonga.core.errors import CommandFailed, ErrorReport, TangoError
 from milonga.core.model import (
     HostSnapshot,
     ServerInfo,
@@ -22,6 +22,7 @@ from milonga.core.services.starter_protocol import ServerLine, parse_server_line
 from milonga.core.tasks import gather_settled
 
 SERVERS_ATTRIBUTE = "Servers"
+STARTER_CLASS = "Starter"
 
 
 def build_host_snapshot(
@@ -70,6 +71,20 @@ class StarterControl:
 
     def __init__(self, backend: TangoBackend) -> None:
         self._backend = backend
+
+    async def controlled_hosts(self) -> tuple[str, ...]:
+        """Hosts with a Starter, which are the ones process control applies to.
+
+        The database's own host list also names every machine a server ever
+        ran on, including containers and placeholders nothing controls.
+        """
+        starters = await self._backend.get_device_list_for_class(STARTER_CLASS)
+        hosts = {
+            device.member
+            for device in starters
+            if device.domain.lower() == "tango" and device.family.lower() == "admin"
+        }
+        return tuple(sorted(hosts, key=str.lower))
 
     @staticmethod
     def servers_attribute(host: str) -> AttributeRef:
@@ -150,7 +165,13 @@ class StarterControl:
         return tuple(ServerName.parse(str(name)) for name in result or ())
 
     async def read_log(self, host: str, server: ServerName) -> str:
-        return str(await self._command(host, "DevReadLog", str(server)) or "")
+        """Empty when the Starter has no log yet; it reports that as an error."""
+        try:
+            return str(await self._command(host, "DevReadLog", str(server)) or "")
+        except CommandFailed as error:
+            if any(frame.reason.startswith("Cannot open") for frame in error.frames):
+                return ""
+            raise
 
     async def reset_statistics(self, host: str) -> None:
         await self._command(host, "ResetStatistics")
@@ -163,17 +184,13 @@ class StarterControl:
     async def set_server_control(
         self, server: ServerName, host: str, *, level: int, controlled: bool = True
     ) -> None:
-        """Change what a Starter controls, then make it re-read the database."""
+        """Change a server's startup level, then make the Starter re-read it.
+
+        This does not move a server between hosts: a Starter controls the
+        servers that last ran on its host, whatever the server record says.
+        """
         await self._backend.put_server_info(ServerInfo(server, host, level, controlled))
         await self.update_servers_info(host)
-
-    async def move_server(self, server: ServerName, *, from_host: str, to_host: str) -> None:
-        info = await self._backend.get_server_info(server)
-        await self._backend.put_server_info(
-            ServerInfo(server, to_host, info.level, info.controlled)
-        )
-        for host in (from_host, to_host):
-            await self.update_servers_info(host)
 
     async def stopped_server_names(self, snapshot: HostSnapshot) -> tuple[ServerName, ...]:
         return tuple(

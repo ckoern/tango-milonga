@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -101,9 +102,11 @@ class HostCard(QFrame):
         self.levels = QLabel(self)
         self.levels.setStyleSheet(f"color: {tokens.ink_3};")
 
+        # real host names run long; the name gets its own line, the chip the next
+        self.name.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         head = QHBoxLayout()
         head.setContentsMargins(0, 0, 0, 0)
-        head.addWidget(self.name)
+        head.addWidget(self.group)
         head.addStretch(1)
         head.addWidget(self.chip)
         footer = QHBoxLayout()
@@ -115,8 +118,8 @@ class HostCard(QFrame):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(11, 10, 11, 10)
         layout.setSpacing(7)
+        layout.addWidget(self.name)
         layout.addLayout(head)
-        layout.addWidget(self.group)
         layout.addWidget(self.strip)
         layout.addLayout(footer)
 
@@ -135,6 +138,7 @@ class HostCard(QFrame):
     def set_snapshot(self, snapshot: HostSnapshot) -> None:
         self._host = snapshot.name
         self.name.setText(snapshot.name)
+        self.name.setToolTip(snapshot.name)
         self.chip.set_state(snapshot.state.value, host_state_category(snapshot.state))
         self.group.setText(snapshot.group or "—")
         self.strip.set_states([server.run_state for server in snapshot.servers])
@@ -148,6 +152,8 @@ class HostCard(QFrame):
             self.counts.setText(f"{text} · {stopped} stopped" if stopped else text)
             self.counts.setToolTip("")
             self.levels.setText(levels_text(snapshot.levels))
+            if snapshot.state is HostState.IDLE:
+                self.counts.setText("nothing to control")
         self._apply_border(
             self._tokens.bad
             if snapshot.state is HostState.UNREACHABLE
@@ -223,8 +229,7 @@ class OverviewPanel(Panel):
         )
 
     async def _load(self) -> None:
-        hosts = await self.context.backend.get_host_list()
-        await self.live.watch(hosts)
+        await self.live.watch(await self.context.control.controlled_hosts())
 
     # ------------------------------------------------------------------- display
 
@@ -281,7 +286,7 @@ class OverviewPanel(Panel):
             1 for snapshot in snapshots if snapshot.state is HostState.UNREACHABLE
         )
         parts = [
-            f"{len(snapshots)} hosts",
+            f"{len(snapshots)} host" + ("" if len(snapshots) == 1 else "s"),
             f"{running} servers running",
             f"{stopped} stopped",
         ]

@@ -120,6 +120,7 @@ _HOST_STATE_CATEGORY: dict[HostState, StateCategory] = {
     HostState.STARTING: StateCategory.BUSY,
     HostState.MIXED: StateCategory.WARNING,
     HostState.ALL_STOPPED: StateCategory.INACTIVE,
+    HostState.IDLE: StateCategory.INACTIVE,
     HostState.UNREACHABLE: StateCategory.FAULT,
 }
 

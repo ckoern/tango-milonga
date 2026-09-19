@@ -14,13 +14,12 @@ def parse_args(argv: Sequence[str] | None = None) -> AppOptions:
         prog="milonga", description="Administration console for Tango Controls"
     )
     parser.add_argument(
-        "--demo",
-        action="store_true",
-        default=True,
-        help="use the in-memory demo control system (default while no PyTango backend exists)",
+        "--demo", action="store_true", help="use the in-memory demo control system"
     )
     parser.add_argument(
-        "--tango-host", default=None, help="control system to connect to, host:port"
+        "--tango-host",
+        default=None,
+        help="control system to connect to, host:port (default: TANGO_HOST or ~/.tangorc)",
     )
     parser.add_argument("--read-only", action="store_true", help="refuse every write")
     parser.add_argument(
@@ -35,7 +34,7 @@ def parse_args(argv: Sequence[str] | None = None) -> AppOptions:
     parser.add_argument("open", nargs="*", help="devices or servers to open at startup")
     namespace = parser.parse_args(argv)
     return AppOptions(
-        demo=namespace.demo or namespace.tango_host is None,
+        demo=namespace.demo,
         tango_host=namespace.tango_host,
         read_only=namespace.read_only,
         theme=Theme(namespace.theme),

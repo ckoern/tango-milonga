@@ -48,3 +48,20 @@ def test_starter_device_uses_short_hostname() -> None:
 def test_names_are_orderable() -> None:
     names = [DeviceName.parse("b/b/1"), DeviceName.parse("a/z/9")]
     assert sorted(names)[0].domain == "a"
+
+
+def test_names_compare_without_regard_to_case() -> None:
+    upper = DeviceName.parse("tango/admin/DESKTOP-H2AI4S9")
+    lower = DeviceName.parse("tango/admin/desktop-h2ai4s9")
+    assert upper == lower
+    assert hash(upper) == hash(lower)
+    assert {upper: "starter"}[lower] == "starter"
+    assert str(upper) == "tango/admin/DESKTOP-H2AI4S9"
+
+
+def test_servers_and_attributes_ignore_case_too() -> None:
+    upper = ServerName.parse("Starter/DESKTOP-H2AI4S9")
+    assert upper == ServerName.parse("starter/desktop-h2ai4s9")
+    device = DeviceName.parse("sys/tg_test/1")
+    assert AttributeRef(device, "State") == AttributeRef(device, "state")
+    assert DeviceName.parse("a/b/c") != ServerName.parse("a/b")

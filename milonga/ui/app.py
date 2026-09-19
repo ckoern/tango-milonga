@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import QApplication
 from milonga.core.backend.protocol import TangoBackend
 from milonga.core.backend.readonly import ReadOnlyBackend
 from milonga.core.commands import CommandRunner
+from milonga.core.errors import TangoError
 from milonga.core.monitor import MonitorHub
 from milonga.core.services.control import StarterControl
 from milonga.core.services.groups import load_host_groups
@@ -30,7 +31,7 @@ from milonga.ui.theme import Theme, apply_theme
 
 @dataclass
 class AppOptions:
-    demo: bool = True
+    demo: bool = False
     tango_host: str | None = None
     read_only: bool = False
     theme: Theme = Theme.DARK
@@ -38,22 +39,49 @@ class AppOptions:
     open: Sequence[str] = field(default_factory=tuple)
 
 
-def build_backend(options: AppOptions) -> TangoBackend:
-    if not options.demo:
-        raise SystemExit(
-            "The PyTango backend is not implemented yet. Run with --demo to use the "
-            "in-memory control system."
-        )
-    from milonga.core.backend.demo import build_demo_backend
+CONNECT_TIMEOUT = 15.0
 
-    backend: TangoBackend = build_demo_backend()
+
+def build_backend(options: AppOptions) -> TangoBackend:
+    backend: TangoBackend
+    if options.demo:
+        from milonga.core.backend.demo import build_demo_backend
+
+        backend = build_demo_backend()
+    else:
+        backend = _tango_backend(options.tango_host)
     if options.read_only:
         backend = ReadOnlyBackend(backend)
     return backend
 
 
+def _tango_backend(tango_host: str | None) -> TangoBackend:
+    try:
+        from milonga.core.backend.pytango_backend import PyTangoBackend
+    except ImportError:
+        raise SystemExit(
+            "PyTango is not installed. Install it with `pip install 'milonga[tango]'`, "
+            "or run with --demo."
+        ) from None
+    try:
+        return PyTangoBackend(tango_host)
+    except TangoError as error:
+        raise SystemExit(f"{error}. Run with --demo to try the in-memory system.") from None
+
+
+async def check_connection(backend: TangoBackend) -> None:
+    """Fail at startup with a sentence, not later with a tree full of errors."""
+    try:
+        await asyncio.wait_for(backend.get_server_list("DataBaseds/*"), CONNECT_TIMEOUT)
+    except (TangoError, TimeoutError) as error:
+        raise SystemExit(
+            f"Cannot reach the Tango database at {backend.tango_host}: {error or 'timed out'}"
+        ) from None
+
+
 async def build_context(options: AppOptions) -> AppContext:
     backend = build_backend(options)
+    await check_connection(backend)
     store = SystemStore()
     context = AppContext(
         backend=backend,
@@ -103,10 +131,10 @@ class Shell:
             return
         scope = previous.navigator.scope
         restore = previous.open_panels
-        previous.close()
-        previous.deleteLater()
         self._options.theme = theme
         window = self._create(theme, restore)
+        previous.close()
+        previous.deleteLater()
         window.navigator.set_scope(scope)
 
 

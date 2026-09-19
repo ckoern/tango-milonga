@@ -83,10 +83,27 @@ async def test_set_server_control_writes_the_database(
     assert {server.name: server.info.level for server in snapshot.servers}[VACUUM] == 4
 
 
-async def test_move_server_to_another_host(control: StarterControl, backend: FakeBackend) -> None:
-    await control.move_server(TEST, from_host=HOST, to_host="id09-srv-01")
+async def test_a_new_host_in_the_record_does_not_move_the_server(
+    control: StarterControl, backend: FakeBackend
+) -> None:
+    await control.set_server_control(TEST, "id09-srv-01", level=2)
     assert (await backend.get_server_info(TEST)).host == "id09-srv-01"
-    assert TEST not in {server.name for server in (await control.host_snapshot(HOST)).servers}
+    still_here = {server.name for server in (await control.host_snapshot(HOST)).servers}
+    assert TEST in still_here
+    elsewhere = {server.name for server in (await control.host_snapshot("id09-srv-01")).servers}
+    assert TEST not in elsewhere
+
+
+async def test_starting_a_server_runs_it_on_the_starters_host(
+    control: StarterControl, backend: FakeBackend
+) -> None:
+    await control.stop_server(HOST, TEST)
+    await control.start_server("id09-srv-01", TEST)
+    assert TEST in {server.name for server in (await control.host_snapshot("id09-srv-01")).servers}
+
+
+async def test_a_missing_log_reads_as_empty(control: StarterControl) -> None:
+    assert await control.read_log(HOST, TEST) == ""
 
 
 def test_uncontrolled_servers_do_not_decide_the_host_state() -> None:
@@ -133,3 +150,9 @@ async def test_start_all_walks_the_levels_in_order(
     assert stopped.state is HostState.ALL_STOPPED
     await control.start_all(stopped)
     assert (await control.host_snapshot(HOST)).state is HostState.ALL_RUNNING
+
+
+def test_a_starter_with_nothing_to_control_is_idle() -> None:
+    uncontrolled = [ServerLine(ServerName("A", "1"), ServerRunState.STOPPED, False, 0)]
+    assert build_host_snapshot("h", uncontrolled).state is HostState.IDLE
+    assert build_host_snapshot("h", []).state is HostState.IDLE

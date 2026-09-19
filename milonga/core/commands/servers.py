@@ -42,7 +42,12 @@ def _yes_no(value: bool) -> str:
 
 @dataclass
 class SetServerControl(Command):
-    """Change a server's host, startup level or controlled flag."""
+    """Change a server's startup level or controlled flag.
+
+    The host written here is the server record's. It does not move the server
+    to another Starter: a Starter controls the servers that last ran on its
+    host, so moving means starting the server there.
+    """
 
     server: ServerName
     host: str
