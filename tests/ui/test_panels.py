@@ -27,7 +27,7 @@ async def test_device_panel_shows_info_properties_and_interface(
     panel = DevicePanel(context, tokens, Target.device(DEVICE))
     await _ready(panel)
     assert panel.header.chip.text() == "ON"
-    assert panel.properties.rowCount() == 0
+    assert panel.properties.model.rowCount() == 0
     assert panel.values.rowCount() == 9
     assert panel.specs.rowCount() == 9
     assert panel.commands.rowCount() == 3
@@ -38,10 +38,7 @@ async def test_device_panel_shows_info_properties_and_interface(
 async def test_device_panel_lists_properties(context: AppContext, tokens: Tokens) -> None:
     panel = DevicePanel(context, tokens, Target.device(DeviceName.parse("id09/motor/phi")))
     await _ready(panel)
-    names = [
-        panel.properties.data(panel.properties.index(row, 0))
-        for row in range(panel.properties.rowCount())
-    ]
+    names = [row.name for row in panel.properties.model.rows]
     assert "Velocity" in names
     assert panel.values.rowCount() == 4
 
@@ -88,7 +85,7 @@ async def test_class_panel_shows_class_properties_and_instances(
 ) -> None:
     panel = ClassPanel(context, tokens, Target.device_class("IcePAPMotor"))
     await _ready(panel)
-    assert panel.properties.rowCount() == 3
+    assert panel.properties.model.rowCount() == 3
     assert panel.devices.rowCount() == 2
 
 
@@ -97,7 +94,7 @@ async def test_object_panel_shows_free_properties(
 ) -> None:
     panel = ObjectPanel(context, tokens, Target.free_object("Milonga"))
     await _ready(panel)
-    assert panel.properties.rowCount() == 1
+    assert panel.properties.model.rowCount() == 1
 
 
 async def test_host_panel_summarises_the_starter(

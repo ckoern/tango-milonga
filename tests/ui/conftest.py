@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import QApplication
 
 from milonga.core.backend.demo import build_demo_backend
 from milonga.core.backend.fake import FakeBackend
+from milonga.core.commands import CommandRunner
 from milonga.core.monitor import MonitorHub
 from milonga.core.services.control import StarterControl
 from milonga.core.services.groups import load_host_groups
@@ -33,6 +34,7 @@ async def context(backend: FakeBackend) -> AppContext:
         inventory=Inventory(backend),
         control=StarterControl(backend),
         journal=Journal(),
+        commands=CommandRunner(backend),
         groups=await load_host_groups(backend),
     )
 
@@ -60,5 +62,6 @@ async def read_only_context(backend: FakeBackend) -> AppContext:
         inventory=Inventory(guarded),
         control=StarterControl(guarded),
         journal=Journal(),
+        commands=CommandRunner(guarded),
         groups=await load_host_groups(guarded),
     )

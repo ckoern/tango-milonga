@@ -8,6 +8,7 @@ from enum import StrEnum
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from milonga.core.backend.protocol import TangoBackend
+from milonga.core.commands import Command, CommandRunner
 from milonga.core.errors import ErrorReport
 from milonga.core.monitor import MonitorHub
 from milonga.core.names import DeviceName, ServerName
@@ -69,6 +70,11 @@ class JournalEntry:
     kind: JournalKind
     summary: str
     detail: str = ""
+    command: Command | None = None
+
+    @property
+    def undoable(self) -> bool:
+        return self.command is not None and self.command.revertible
 
 
 class Journal(QObject):
@@ -87,8 +93,11 @@ class Journal(QObject):
     def info(self, summary: str, detail: str = "") -> None:
         self._add(JournalKind.INFO, summary, detail)
 
-    def write(self, summary: str, detail: str = "") -> None:
-        self._add(JournalKind.WRITE, summary, detail)
+    def undone(self, entry: JournalEntry) -> None:
+        self._add(JournalKind.WRITE, f"undo · {entry.summary}", "")
+
+    def write(self, summary: str, detail: str = "", command: Command | None = None) -> None:
+        self._add(JournalKind.WRITE, summary, detail, command)
 
     def error(self, summary: str, detail: str = "") -> None:
         self._add(JournalKind.ERROR, summary, detail)
@@ -101,8 +110,14 @@ class Journal(QObject):
         )
         self._add(JournalKind.ERROR, summary, detail)
 
-    def _add(self, kind: JournalKind, summary: str, detail: str) -> None:
-        entry = JournalEntry(datetime.now(), kind, summary, detail)
+    def _add(
+        self,
+        kind: JournalKind,
+        summary: str,
+        detail: str,
+        command: Command | None = None,
+    ) -> None:
+        entry = JournalEntry(datetime.now(), kind, summary, detail, command)
         self._entries.append(entry)
         self.entryAdded.emit(entry)
 
@@ -121,6 +136,7 @@ class AppContext:
     inventory: Inventory
     control: StarterControl
     journal: Journal
+    commands: CommandRunner
     groups: HostGroups = field(default_factory=HostGroups)
     open_target: Callable[[Target], None] = _ignore
 

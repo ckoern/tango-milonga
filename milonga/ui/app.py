@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import QApplication
 
 from milonga.core.backend.protocol import TangoBackend
 from milonga.core.backend.readonly import ReadOnlyBackend
+from milonga.core.commands import CommandRunner
 from milonga.core.monitor import MonitorHub
 from milonga.core.services.control import StarterControl
 from milonga.core.services.groups import load_host_groups
@@ -61,6 +62,7 @@ async def build_context(options: AppOptions) -> AppContext:
         inventory=Inventory(backend),
         control=StarterControl(backend),
         journal=Journal(),
+        commands=CommandRunner(backend),
         groups=await load_host_groups(backend),
     )
     return context

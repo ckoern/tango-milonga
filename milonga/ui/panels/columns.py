@@ -1,32 +1,9 @@
 """Column definitions shared by the read-only tables."""
 
 from milonga.core.enums import StateCategory
-from milonga.core.model import (
-    AttributeSpec,
-    CommandSpec,
-    DeviceSnapshot,
-    PropertyEntry,
-    ServerSnapshot,
-)
+from milonga.core.model import AttributeSpec, CommandSpec, DeviceSnapshot, ServerSnapshot
 from milonga.ui.models.tables import Column
 from milonga.ui.theme import run_state_category
-
-VALUE_SEPARATOR = " · "
-
-
-def property_columns() -> list[Column[PropertyEntry]]:
-    return [
-        Column("Property", lambda entry: entry.name, mono=True),
-        Column(
-            "Value",
-            lambda entry: VALUE_SEPARATOR.join(entry.values),
-            tooltip=lambda entry: "\n".join(entry.values),
-            mono=True,
-            stretch=2,
-        ),
-        Column("Values", lambda entry: str(len(entry.values)), align_right=True),
-        Column("Scope", lambda entry: entry.scope.value),
-    ]
 
 
 def device_columns() -> list[Column[DeviceSnapshot]]:

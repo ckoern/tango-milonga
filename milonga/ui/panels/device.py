@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
     QCheckBox,
     QHBoxLayout,
     QLabel,
+    QPushButton,
     QSplitter,
     QStackedWidget,
     QTabWidget,
@@ -22,6 +23,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from milonga.core.commands import PropertyTarget, SetAttributeConfig
 from milonga.core.enums import AttrDataFormat, DataSource, StateCategory, TangoState
 from milonga.core.errors import ErrorReport
 from milonga.core.model import (
@@ -32,15 +34,18 @@ from milonga.core.model import (
 )
 from milonga.core.names import AttributeRef, DeviceName
 from milonga.ui.context import AppContext, Target
+from milonga.ui.dialogs import AttributeConfigDialog
 from milonga.ui.format import format_scalar
 from milonga.ui.live import LiveAttributes
 from milonga.ui.models.tables import ObjectTableModel
 from milonga.ui.models.values import AttributeValuesModel
 from milonga.ui.panels.base import InfoForm, Panel
-from milonga.ui.panels.columns import attribute_columns, command_columns, property_columns
+from milonga.ui.panels.columns import attribute_columns, command_columns
 from milonga.ui.plots import ImageView, SpectrumView
+from milonga.ui.property_editor import PropertyEditor
 from milonga.ui.theme import Tokens, device_state_category
 from milonga.ui.widgets import CommandBar, WriteBar
+from milonga.ui.write import WriteAction
 
 STATE_ATTRIBUTE = "State"
 
@@ -61,7 +66,13 @@ class DevicePanel(Panel):
         self.values = AttributeValuesModel(self.live, self.device, self)
         self.specs = ObjectTableModel(attribute_columns(), self)
         self.commands = ObjectTableModel(command_columns(), self)
-        self.properties = ObjectTableModel(property_columns(), self)
+        self.properties = PropertyEditor(
+            context, tokens, PropertyTarget.device(self.device), self.runner, self
+        )
+        self.properties.failed.connect(self._failed)
+        self.write = WriteAction(context, tokens, self.runner, self)
+        self.write.done.connect(self._config_written)
+        self.write.failed.connect(self._failed)
         self.info = InfoForm(tokens, self)
 
         self._selected_array: AttributeRef | None = None
@@ -75,8 +86,8 @@ class DevicePanel(Panel):
         self.tabs = QTabWidget(self)
         self.tabs.addTab(self._attributes_tab(), "Attributes")
         self.tabs.addTab(self._commands_tab(), "Commands")
-        self.tabs.addTab(self.make_table(self.properties), "Properties")
-        self.tabs.addTab(self.make_table(self.specs), "Config")
+        self.tabs.addTab(self.properties, "Properties")
+        self.tabs.addTab(self._config_tab(), "Config")
         self.tabs.addTab(self.info, "Info")
 
         layout = self.base_layout()
@@ -138,6 +149,44 @@ class DevicePanel(Panel):
             selection.currentRowChanged.connect(self._selection_changed)
         return view
 
+    def _config_tab(self) -> QWidget:
+        page = QWidget(self)
+        self.config_view = self.make_table(self.specs)
+        self.config_button = QPushButton("Edit…", page)
+        self.config_button.setEnabled(not self.context.read_only)
+        self.config_button.clicked.connect(self._edit_config)
+
+        toolbar = QHBoxLayout()
+        toolbar.setContentsMargins(0, 0, 0, 0)
+        toolbar.addWidget(self.config_button)
+        toolbar.addStretch(1)
+
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 8, 0, 0)
+        layout.setSpacing(8)
+        layout.addLayout(toolbar)
+        layout.addWidget(self.config_view, 1)
+        return page
+
+    def _edit_config(self) -> None:
+        selection = self.config_view.selectionModel()
+        if selection is None:
+            return
+        spec = self.specs.row_at(selection.currentIndex())
+        if spec is None:
+            return
+        dialog = AttributeConfigDialog(spec, self.tokens, self)
+        if not dialog.exec():
+            return
+        self.write.execute([SetAttributeConfig(self.device, dialog.edited())])
+
+    def _config_written(self) -> None:
+        self.runner.run(
+            self.context.backend.get_attribute_specs(self.device),
+            on_result=self._apply_attributes,
+            on_error=self._failed,
+        )
+
     def _commands_tab(self) -> QWidget:
         page = QWidget(self)
         self.command_view = self.make_table(self.commands)
@@ -184,11 +233,7 @@ class DevicePanel(Panel):
             on_result=self._apply_snapshot,
             on_error=self._failed,
         )
-        self.runner.run(
-            self.context.backend.get_device_properties(self.device),
-            on_result=self.properties.set_rows,
-            on_error=self._failed,
-        )
+        self.properties.refresh()
 
     def _apply_watches(self) -> None:
         if not self._live_enabled or not self._exported:

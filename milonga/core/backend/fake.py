@@ -612,7 +612,7 @@ class FakeBackend:
         self, device: DeviceName, name: str
     ) -> tuple[PropertyHistoryEntry, ...]:
         await self._io("get_device_property_history")
-        return tuple(reversed(self._history.get((PropertyScope.DEVICE, str(device), name), [])))
+        return self._read_history(PropertyScope.DEVICE, str(device), name)
 
     async def get_class_property_names(self, class_name: str) -> tuple[str, ...]:
         await self._io("get_class_property_names")
@@ -631,6 +631,18 @@ class FakeBackend:
     async def delete_class_properties(self, class_name: str, names: Sequence[str]) -> None:
         await self._write("delete_class_properties")
         self._delete_properties(PropertyScope.CLASS, class_name, names)
+
+    async def get_class_property_history(
+        self, class_name: str, name: str
+    ) -> tuple[PropertyHistoryEntry, ...]:
+        await self._io("get_class_property_history")
+        return self._read_history(PropertyScope.CLASS, class_name, name)
+
+    async def get_property_history(
+        self, obj: str, name: str
+    ) -> tuple[PropertyHistoryEntry, ...]:
+        await self._io("get_property_history")
+        return self._read_history(PropertyScope.FREE, obj, name)
 
     async def get_device_attribute_properties(self, device: DeviceName) -> AttributePropertyMap:
         await self._io("get_device_attribute_properties")
@@ -1070,6 +1082,11 @@ class FakeBackend:
         for name in names:
             if store.pop(name, None) is not None:
                 self._record_history(scope, owner, name, (), deleted=True)
+
+    def _read_history(
+        self, scope: PropertyScope, owner: str, name: str
+    ) -> tuple[PropertyHistoryEntry, ...]:
+        return tuple(reversed(self._history.get((scope, owner, name), [])))
 
     def _record_history(
         self,

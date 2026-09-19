@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import QModelIndex, Qt, pyqtSignal
 from PyQt6.QtGui import QAction, QKeySequence
 from PyQt6.QtWidgets import (
     QDockWidget,
@@ -44,7 +44,11 @@ def journal_columns() -> list[Column[JournalEntry]]:
             mono=True,
             stretch=3,
         ),
+        Column("", lambda entry: "undo" if entry.undoable else ""),
     ]
+
+
+UNDO_COLUMN = 3
 
 
 class Inspector(QWidget):
@@ -120,13 +124,9 @@ class MainWindow(QMainWindow):
         self._dock("Inspector", self.inspector, Qt.DockWidgetArea.RightDockWidgetArea, 280)
 
         self.journal_model = ObjectTableModel(journal_columns(), self)
-        self._dock(
-            "Journal",
-            self._journal_view(),
-            Qt.DockWidgetArea.BottomDockWidgetArea,
-            160,
-        )
+        self._dock("Journal", self._journal_dock(), Qt.DockWidgetArea.BottomDockWidgetArea, 160)
         context.journal.entryAdded.connect(self.journal_model.append_row)
+        self.journal_view.clicked.connect(self._journal_clicked)
 
         self._build_toolbar()
         self._build_status_bar()
@@ -198,17 +198,33 @@ class MainWindow(QMainWindow):
             self.resizeDocks([dock], [size], Qt.Orientation.Vertical)
         return dock
 
-    def _journal_view(self) -> QWidget:
-        from milonga.ui.panels.base import Panel as _Panel
-
-        holder = _Panel(self.context, self.tokens, Target.free_object("journal"), self)
+    def _journal_dock(self) -> QWidget:
+        holder = Panel(self.context, self.tokens, Target.free_object("journal"), self)
         holder.header.setVisible(False)
         holder.banner.setVisible(False)
-        view = holder.make_table(self.journal_model)
+        self.journal_view = holder.make_table(self.journal_model)
+        self.journal_view.setToolTip("Click “undo” to reverse a write")
         layout = QVBoxLayout(holder)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(view)
+        layout.addWidget(self.journal_view)
         return holder
+
+    def _journal_clicked(self, index: QModelIndex) -> None:
+        if index.column() != UNDO_COLUMN:
+            return
+        entry = self.journal_model.row_at(index)
+        if entry is None or not entry.undoable or entry.command is None:
+            return
+        command = entry.command
+        self._runner.run(
+            self.context.commands.undo(command),
+            on_result=lambda _: self._undone(entry),
+            label=f"undo {command.summary}",
+        )
+
+    def _undone(self, entry: JournalEntry) -> None:
+        self.context.journal.undone(entry)
+        self.refresh_current()
 
     def _build_toolbar(self) -> None:
         toolbar = QToolBar("Main", self)
