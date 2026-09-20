@@ -1,4 +1,6 @@
 import pytest
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QDockWidget
 
 from milonga.core.backend.fake import FakeBackend
 from milonga.core.model import HostSnapshot
@@ -144,3 +146,42 @@ async def test_search_resolves_aliases(context: AppContext, tokens: Tokens) -> N
 def test_typed_names_resolve_without_the_database(text: str, expected: str | None) -> None:
     target = parse_target(text)
     assert (target.name if target else None) == expected
+
+
+async def test_every_dock_can_be_hidden_and_shown(window: MainWindow) -> None:
+    names = {"Navigator", "Inspector", "Journal"}
+    assert set(window._docks) == names
+    listed = {action.text() for action in window.view_menu.actions() if action.text()}
+    assert names <= listed
+    assert "Reset layout" in listed
+
+    window.show()
+    for dock, _area in window._docks.values():
+        assert dock.features() & QDockWidget.DockWidgetFeature.DockWidgetClosable
+        action = dock.toggleViewAction()
+        assert action is not None
+        action.trigger()
+        assert dock.isHidden()
+        action.trigger()
+        assert not dock.isHidden()
+    window.close()
+
+
+async def test_a_floating_dock_is_a_normal_window(window: MainWindow) -> None:
+    """Qt floats docks as tool windows, which some window managers leave
+    undecorated, on top and unfocusable."""
+    dock, _area = window._docks["Navigator"]
+    dock.setFloating(True)
+    kind = dock.windowFlags() & Qt.WindowType.WindowType_Mask
+    assert kind == Qt.WindowType.Window, "Qt::Tool is what a floating dock is by default"
+    assert dock.windowFlags() & Qt.WindowType.WindowCloseButtonHint
+
+
+async def test_reset_layout_brings_the_docks_back(window: MainWindow) -> None:
+    navigator, area = window._docks["Navigator"]
+    navigator.setFloating(True)
+    navigator.hide()
+    window.reset_layout()
+    assert not navigator.isFloating()
+    assert not navigator.isHidden()
+    assert window.dockWidgetArea(navigator) == area

@@ -9,9 +9,11 @@ from PyQt6.QtWidgets import (
     QDockWidget,
     QLabel,
     QMainWindow,
+    QMenu,
     QPushButton,
     QTabWidget,
     QToolBar,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -115,6 +117,24 @@ class Inspector(QWidget):
             self.openRequested.emit(self._target)
 
 
+def _floated(dock: QDockWidget, floating: bool) -> None:
+    """A floating dock is a plain window, not a tool window.
+
+    Qt floats docks as tool windows, which some window managers — WSLg's among
+    them — leave undecorated, always on top and unfocusable, so they cannot be
+    moved or docked again. A normal window is one the window manager handles.
+    """
+    if not floating:
+        return
+    dock.setWindowFlags(
+        Qt.WindowType.Window
+        | Qt.WindowType.WindowTitleHint
+        | Qt.WindowType.WindowMinMaxButtonsHint
+        | Qt.WindowType.WindowCloseButtonHint
+    )
+    dock.show()
+
+
 def _journal_text(entry: JournalEntry) -> str:
     stamp = entry.at.strftime("%Y-%m-%d %H:%M:%S")
     return f"{stamp}  {entry.kind.value}  {entry.summary}" + (
@@ -147,6 +167,7 @@ class MainWindow(QMainWindow):
         self.tabs.tabCloseRequested.connect(self._close_tab)
         self.setCentralWidget(self.tabs)
         self._panels: dict[str, Panel] = {}
+        self._docks: dict[str, tuple[QDockWidget, Qt.DockWidgetArea]] = {}
         self._runner = TaskRunner(self, context.journal, context="window")
 
         self.navigator = Navigator(context, tokens, self)
@@ -226,13 +247,23 @@ class MainWindow(QMainWindow):
         dock.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable
             | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+            | QDockWidget.DockWidgetFeature.DockWidgetClosable
         )
+        dock.topLevelChanged.connect(lambda floating, d=dock: _floated(d, floating))
         self.addDockWidget(area, dock)
         if area in (Qt.DockWidgetArea.LeftDockWidgetArea, Qt.DockWidgetArea.RightDockWidgetArea):
             self.resizeDocks([dock], [size], Qt.Orientation.Horizontal)
         else:
             self.resizeDocks([dock], [size], Qt.Orientation.Vertical)
+        self._docks[title] = (dock, area)
         return dock
+
+    def reset_layout(self) -> None:
+        """Bring every dock back where it started, in case one is lost or stuck."""
+        for dock, area in self._docks.values():
+            dock.setFloating(False)
+            self.addDockWidget(area, dock)
+            dock.show()
 
     def _journal_dock(self) -> QWidget:
         holder = Panel(self.context, self.tokens, Target.free_object("journal"), self)
@@ -313,6 +344,19 @@ class MainWindow(QMainWindow):
         reload_tree = QAction("Reload tree", self)
         reload_tree.triggered.connect(self.navigator.refresh)
         toolbar.addAction(reload_tree)
+
+        self.view_button = QToolButton(self)
+        self.view_button.setText("View")
+        self.view_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.view_menu = QMenu(self.view_button)
+        for dock, _area in self._docks.values():
+            action = dock.toggleViewAction()
+            if action is not None:
+                self.view_menu.addAction(action)
+        self.view_menu.addSeparator()
+        self.view_menu.addAction("Reset layout", self.reset_layout)
+        self.view_button.setMenu(self.view_menu)
+        toolbar.addWidget(self.view_button)
 
         toggle = QAction("Theme", self)
         toggle.triggered.connect(self._toggle_theme)
