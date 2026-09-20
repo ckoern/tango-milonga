@@ -120,9 +120,12 @@ with a preview and an undo.
 
 ## Development
 
+Python 3.10 or newer; PyTango is an extra, needed only to talk to a real
+control system.
+
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install -e '.[dev,gui,tango]'
+.venv/bin/pip install -e '.[dev,tango]'
 
 .venv/bin/pytest                    # 371 tests, no control system needed
 .venv/bin/pytest --integration      # plus 28 against the control system in TANGO_HOST

@@ -20,6 +20,11 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.integration
 
+try:
+    import tango  # noqa: F401
+except ImportError:  # pytango is an optional extra; these tests are the only users
+    collect_ignore_glob = ["test_*.py"]
+
 SANDBOX_SERVER = ServerName("MilongaTest", "pytest")
 SANDBOX_DEVICES = (DeviceName.parse("milonga/test/1"), DeviceName.parse("milonga/test/2"))
 SANDBOX_CLASS = "MilongaTestClass"

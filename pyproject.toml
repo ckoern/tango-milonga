@@ -8,14 +8,19 @@ version = "0.1.0"
 description = "Qt administration console for Tango Controls"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["numpy>=1.24"]
+dependencies = [
+    "numpy>=1.24",
+    "PyQt6>=6.6",
+    "pyqtgraph>=0.13",
+    "qasync>=0.27",
+]
 
 [project.optional-dependencies]
 tango = ["pytango>=9.4"]
-gui = ["PyQt6>=6.6", "pyqtgraph>=0.13", "qasync>=0.27"]
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.23",
+    "pytest-qt>=4.2",
     "mypy>=1.8",
     "ruff>=0.5",
     "vermin>=1.6",
