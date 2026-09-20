@@ -77,6 +77,10 @@ milonga --theme light --scope hosts sys/tg_test/1
 
 Keys: `Ctrl+1` system overview, `Ctrl+K` search, `Ctrl+N` create, `F5` refresh.
 
+Right-click a tab to move that panel into a window of its own — two device
+panels side by side, for instance — and "Move back into tabs" to return it.
+An object is only ever open once: opening it again raises the window it is in.
+
 The **View** menu hides and shows the navigator, inspector and journal, and
 resets the layout if a panel ends up somewhere unhelpful. A dock dragged out
 of the window becomes an ordinary window: Qt would otherwise make it a tool
@@ -113,7 +117,7 @@ with a preview and an undo.
 python3 -m venv .venv
 .venv/bin/pip install -e '.[dev,gui,tango]'
 
-.venv/bin/pytest                    # 348 tests, no control system needed
+.venv/bin/pytest                    # 355 tests, no control system needed
 .venv/bin/pytest --integration      # plus 28 against the control system in TANGO_HOST
 .venv/bin/mypy milonga tests
 .venv/bin/ruff check .

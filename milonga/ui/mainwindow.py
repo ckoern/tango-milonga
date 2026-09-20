@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 
 from PyQt6.QtCore import QModelIndex, QPoint, Qt, pyqtSignal
-from PyQt6.QtGui import QAction, QKeySequence
+from PyQt6.QtGui import QAction, QCloseEvent, QKeySequence
 from PyQt6.QtWidgets import (
     QApplication,
     QDockWidget,
@@ -20,10 +20,11 @@ from PyQt6.QtWidgets import (
 
 from milonga.core.enums import StateCategory
 from milonga.ui.context import AppContext, JournalEntry, JournalKind, Target, TargetKind
-from milonga.ui.menus import MenuEntry, MenuItems, popup
+from milonga.ui.menus import SEPARATOR, MenuEntry, MenuItems, popup
 from milonga.ui.models.tables import Column, ObjectTableModel
 from milonga.ui.models.tree import TreeNode
 from milonga.ui.navigator import Navigator, Scope, target_of
+from milonga.ui.panel_window import CASCADE, PanelWindow
 from milonga.ui.panels import Panel, create_panel
 from milonga.ui.panels.base import InfoForm
 from milonga.ui.search import SearchDialog
@@ -165,9 +166,14 @@ class MainWindow(QMainWindow):
         self.tabs.setMovable(True)
         self.tabs.setDocumentMode(True)
         self.tabs.tabCloseRequested.connect(self._close_tab)
+        bar = self.tabs.tabBar()
+        if bar is not None:
+            bar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            bar.customContextMenuRequested.connect(self._tab_menu)
         self.setCentralWidget(self.tabs)
         self._panels: dict[str, Panel] = {}
         self._docks: dict[str, tuple[QDockWidget, Qt.DockWidgetArea]] = {}
+        self._windows: dict[str, PanelWindow] = {}
         self._runner = TaskRunner(self, context.journal, context="window")
 
         self.navigator = Navigator(context, tokens, self)
@@ -193,13 +199,23 @@ class MainWindow(QMainWindow):
     # --------------------------------------------------------------------- panels
 
     def open_target(self, target: Target) -> None:
+        """One panel per object: opening it again shows the one already open,
+        wherever it is."""
         panel = self._panels.get(target.uri)
         if panel is None:
             panel = create_panel(self.context, self.tokens, target)
             self._panels[target.uri] = panel
             self.tabs.addTab(panel, panel.title)
-        self.tabs.setCurrentWidget(panel)
-        self._update_status()
+            self.tabs.setCurrentWidget(panel)
+            self._update_status()
+            return
+        window = self._windows.get(target.uri)
+        if window is not None:
+            window.show()
+            window.raise_()
+            window.activateWindow()
+        else:
+            self.tabs.setCurrentWidget(panel)
 
     def open_targets(self, targets: Sequence[Target]) -> None:
         for target in targets:
@@ -230,13 +246,79 @@ class MainWindow(QMainWindow):
         widget = self.tabs.widget(index)
         if not isinstance(widget, Panel):
             return
-        self._panels.pop(widget.target.uri, None)
         self.tabs.removeTab(index)
-        widget.runner.cancel_all()
+        self._release_panel(widget)
+
+    def _release_panel(self, panel: Panel) -> None:
+        self._panels.pop(panel.target.uri, None)
+        self._windows.pop(panel.target.uri, None)
+        panel.runner.cancel_all()
         # The panel's own runner is gone, so its subscriptions are released on
         # the window's runner instead of being abandoned.
-        self._runner.run(widget.aclose(), on_result=lambda _: widget.deleteLater())
+        self._runner.run(panel.aclose(), on_result=lambda _: panel.deleteLater())
         self._update_status()
+
+    # ---------------------------------------------------------- panels in windows
+
+    def detach_panel(self, panel: Panel) -> PanelWindow:
+        """Move a panel out of the tabs into a window of its own."""
+        index = self.tabs.indexOf(panel)
+        if index >= 0:
+            self.tabs.removeTab(index)
+        window = PanelWindow(panel)
+        window.closed.connect(self._release_panel)
+        window.reattachRequested.connect(self.attach_panel)
+        window.place_beside(self, CASCADE * (len(self._windows) + 1))
+        self._windows[panel.target.uri] = window
+        window.show()
+        self._update_status()
+        return window
+
+    def open_in_window(self, panel: Panel) -> None:
+        self.detach_panel(panel)
+
+    def attach_panel(self, panel: Panel) -> None:
+        """Bring a panel in its own window back into the tabs."""
+        window = self._windows.pop(panel.target.uri, None)
+        if window is not None:
+            window.take_panel()
+            window.close()
+            window.deleteLater()
+        panel.show()
+        self.tabs.addTab(panel, panel.title)
+        self.tabs.setCurrentWidget(panel)
+        self._update_status()
+
+    @property
+    def detached_panels(self) -> tuple[Target, ...]:
+        return tuple(
+            panel.target for uri, panel in self._panels.items() if uri in self._windows
+        )
+
+    def tab_items(self, index: int) -> MenuItems:
+        widget = self.tabs.widget(index)
+        if not isinstance(widget, Panel):
+            return []
+        return [
+            MenuEntry("Open in new window", lambda: self.open_in_window(widget)),
+            SEPARATOR,
+            MenuEntry("Close", lambda: self._close_tab(index)),
+        ]
+
+    def _tab_menu(self, point: QPoint) -> None:
+        bar = self.tabs.tabBar()
+        if bar is None:
+            return
+        index = bar.tabAt(point)
+        if index >= 0:
+            popup(bar, point, self.tab_items(index))
+
+    def closeEvent(self, a0: QCloseEvent | None) -> None:
+        """Detached panels are windows of their own; closing the main window
+        closes them too, or the application would stay alive without them."""
+        for window in list(self._windows.values()):
+            window.close()
+        super().closeEvent(a0)
 
     # ------------------------------------------------------------------- chrome
 
@@ -376,8 +458,10 @@ class MainWindow(QMainWindow):
 
     def _update_status(self) -> None:
         mode = "read-only" if self.context.read_only else "read/write"
+        detached = f" ({len(self._windows)} in windows)" if self._windows else ""
         self.status_label.setText(
-            f"{self.context.tango_host}   ·   {len(self._panels)} open   ·   {mode}   "
+            f"{self.context.tango_host}   ·   {len(self._panels)} open{detached}"
+            f"   ·   {mode}   "
         )
 
     def open_search(self) -> None:
