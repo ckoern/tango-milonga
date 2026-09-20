@@ -8,11 +8,12 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, TypeAlias
 
-from PyQt6.QtCore import QAbstractItemModel, QModelIndex, QObject, Qt, pyqtSignal
+from PySide6.QtCore import QAbstractItemModel, QModelIndex, QObject, Qt, Signal
 
 from milonga.compat import StrEnum
 from milonga.core.enums import StateCategory
 from milonga.core.errors import ErrorReport
+from milonga.ui.models import Index
 from milonga.ui.tasks import TaskRunner
 
 
@@ -66,7 +67,7 @@ DETAIL_ROLE = NODE_ROLE + 2
 class LazyTreeModel(QAbstractItemModel):
     """Holds nodes; asks ``loader`` for children the first time a node opens."""
 
-    loadFailed = pyqtSignal(object)
+    loadFailed = Signal(object)
 
     def __init__(
         self, loader: ChildLoader, runner: TaskRunner, parent: QObject | None = None
@@ -85,7 +86,7 @@ class LazyTreeModel(QAbstractItemModel):
             node.parent = None
         self.endResetModel()
 
-    def node(self, index: QModelIndex) -> TreeNode | None:
+    def node(self, index: Index) -> TreeNode | None:
         if not index.isValid():
             return None
         pointer = index.internalPointer()
@@ -112,37 +113,37 @@ class LazyTreeModel(QAbstractItemModel):
 
     # -------------------------------------------------------------- model basics
 
-    def index(self, row: int, column: int, parent: QModelIndex = QModelIndex()) -> QModelIndex:
+    def index(self, row: int, column: int, parent: Index = QModelIndex()) -> QModelIndex:
         if not self.hasIndex(row, column, parent):
             return QModelIndex()
         siblings = self._children(self.node(parent))
         return self.createIndex(row, column, siblings[row])
 
-    def parent(self, index: QModelIndex = QModelIndex()) -> QModelIndex:  # type: ignore[override]
+    def parent(self, index: Index = QModelIndex()) -> QModelIndex:  # type: ignore[override]
         node = self.node(index)
         if node is None or node.parent is None:
             return QModelIndex()
         return self.createIndex(self._row_of(node.parent), 0, node.parent)
 
-    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
+    def rowCount(self, parent: Index = QModelIndex()) -> int:
         if parent.column() > 0:
             return 0
         return len(self._children(self.node(parent)))
 
-    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
+    def columnCount(self, parent: Index = QModelIndex()) -> int:
         return 1
 
-    def hasChildren(self, parent: QModelIndex = QModelIndex()) -> bool:
+    def hasChildren(self, parent: Index = QModelIndex()) -> bool:
         node = self.node(parent)
         if node is None:
             return bool(self._roots)
         return node.expandable or bool(node.children)
 
-    def canFetchMore(self, parent: QModelIndex) -> bool:
+    def canFetchMore(self, parent: Index) -> bool:
         node = self.node(parent)
         return node is not None and node.expandable and not node.loaded and not node.loading
 
-    def fetchMore(self, parent: QModelIndex) -> None:
+    def fetchMore(self, parent: Index) -> None:
         node = self.node(parent)
         if node is None or node.loading or node.loaded:
             return
@@ -154,7 +155,7 @@ class LazyTreeModel(QAbstractItemModel):
             label=f"load {node.label}",
         )
 
-    def data(self, index: QModelIndex, role: int = int(Qt.ItemDataRole.DisplayRole)) -> Any:
+    def data(self, index: Index, role: int = int(Qt.ItemDataRole.DisplayRole)) -> Any:
         node = self.node(index)
         if node is None:
             return None
@@ -172,7 +173,7 @@ class LazyTreeModel(QAbstractItemModel):
             case _:
                 return None
 
-    def flags(self, index: QModelIndex) -> Qt.ItemFlag:
+    def flags(self, index: Index) -> Qt.ItemFlag:
         if not index.isValid():
             return Qt.ItemFlag.NoItemFlags
         node = self.node(index)

@@ -2,8 +2,8 @@
 
 from collections.abc import Sequence
 
-from PyQt6.QtCore import QModelIndex, QPoint, QSortFilterProxyModel, Qt, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QModelIndex, QPoint, QSortFilterProxyModel, Qt, Signal
+from PySide6.QtWidgets import (
     QButtonGroup,
     QGridLayout,
     QLineEdit,
@@ -261,7 +261,7 @@ class ScopeSelector(QWidget):
     that, and a scrolling tab bar would cost the click the tabs save.
     """
 
-    currentChanged = pyqtSignal(int)
+    currentChanged = Signal(int)
     COLUMNS = 3
 
     def __init__(self, labels: Sequence[str], parent: QWidget | None = None) -> None:
@@ -351,8 +351,8 @@ class ScopePage(QWidget):
 class Navigator(QWidget):
     """One tab per scope, each with its own tree, loaded the first time it shows."""
 
-    targetActivated = pyqtSignal(object)
-    nodeSelected = pyqtSignal(object)
+    targetActivated = Signal(object)
+    nodeSelected = Signal(object)
 
     def __init__(self, context: AppContext, tokens: Tokens, parent: QWidget | None = None) -> None:
         super().__init__(parent)

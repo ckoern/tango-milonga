@@ -8,12 +8,13 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from PyQt6.QtCore import QAbstractTableModel, QModelIndex, QObject, Qt
-from PyQt6.QtGui import QColor, QFont
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, QObject, Qt
+from PySide6.QtGui import QColor, QFont
 
 from milonga.compat import StrEnum
 from milonga.core.commands import Command, DeleteProperties, PropertyTarget, PutProperties
 from milonga.core.model import PropertyEntry, PropertyValues
+from milonga.ui.models import Index
 from milonga.ui.theme import Tokens, mono_font
 
 COLUMNS = ("Property", "Value", "Values", "State")
@@ -63,7 +64,7 @@ class PropertyEditorModel(QAbstractTableModel):
         ]
         self.endResetModel()
 
-    def row_at(self, index: QModelIndex) -> PropertyRow | None:
+    def row_at(self, index: Index) -> PropertyRow | None:
         row = index.row()
         if not index.isValid() or not 0 <= row < len(self._rows):
             return None
@@ -140,10 +141,10 @@ class PropertyEditorModel(QAbstractTableModel):
 
     # -------------------------------------------------------------- model basics
 
-    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
+    def rowCount(self, parent: Index = QModelIndex()) -> int:
         return 0 if parent.isValid() else len(self._rows)
 
-    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
+    def columnCount(self, parent: Index = QModelIndex()) -> int:
         return 0 if parent.isValid() else len(COLUMNS)
 
     def headerData(
@@ -156,7 +157,7 @@ class PropertyEditorModel(QAbstractTableModel):
             return COLUMNS[section]
         return None
 
-    def flags(self, index: QModelIndex) -> Qt.ItemFlag:
+    def flags(self, index: Index) -> Qt.ItemFlag:
         base = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
         row = self.row_at(index)
         if row is None or index.column() != VALUE_COLUMN:
@@ -165,7 +166,7 @@ class PropertyEditorModel(QAbstractTableModel):
             return base
         return base | Qt.ItemFlag.ItemIsEditable
 
-    def data(self, index: QModelIndex, role: int = int(Qt.ItemDataRole.DisplayRole)) -> Any:
+    def data(self, index: Index, role: int = int(Qt.ItemDataRole.DisplayRole)) -> Any:
         row = self.row_at(index)
         if row is None:
             return None
@@ -182,7 +183,7 @@ class PropertyEditorModel(QAbstractTableModel):
                 return None
 
     def setData(
-        self, index: QModelIndex, value: Any, role: int = int(Qt.ItemDataRole.EditRole)
+        self, index: Index, value: Any, role: int = int(Qt.ItemDataRole.EditRole)
     ) -> bool:
         row = self.row_at(index)
         if row is None or role != Qt.ItemDataRole.EditRole or index.column() != VALUE_COLUMN:

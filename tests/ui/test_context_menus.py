@@ -1,7 +1,7 @@
 """What every right-click menu offers, and that its entries act."""
 
 import pytest
-from PyQt6.QtCore import QModelIndex
+from PySide6.QtCore import QModelIndex
 
 from milonga.core.backend.fake import FakeBackend
 from milonga.core.commands import PropertyTarget, PutProperties

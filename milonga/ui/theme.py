@@ -2,9 +2,9 @@
 
 from dataclasses import dataclass, fields, replace
 
-from PyQt6.QtCore import QObject, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QFontDatabase, QPalette
-from PyQt6.QtWidgets import QApplication, QWidget
+from PySide6.QtCore import QObject, Signal
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QPalette
+from PySide6.QtWidgets import QApplication, QWidget
 
 from milonga.compat import StrEnum
 from milonga.core.enums import (
@@ -109,7 +109,7 @@ ACTIVE = replace(LIGHT)
 class ThemeSignals(QObject):
     """For the few widgets that cannot be styled by the stylesheet alone."""
 
-    changed = pyqtSignal()
+    changed = Signal()
 
 
 theme_signals = ThemeSignals()

@@ -1,6 +1,6 @@
 """Class panel: the defaults every device of a class inherits, and its instances."""
 
-from PyQt6.QtWidgets import QTabWidget, QWidget
+from PySide6.QtWidgets import QTabWidget, QWidget
 
 from milonga.core.commands import PropertyTarget
 from milonga.core.errors import ErrorReport

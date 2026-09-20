@@ -1,5 +1,5 @@
 import pytest
-from PyQt6.QtCore import QModelIndex
+from PySide6.QtCore import QModelIndex
 
 from milonga.core.backend.fake import FakeBackend
 from milonga.core.enums import StateCategory

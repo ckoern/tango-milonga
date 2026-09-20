@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QComboBox,

@@ -3,7 +3,7 @@
 from collections.abc import Iterator
 
 import pytest
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication
 
 from milonga.core.enums import StateCategory
 from milonga.core.names import DeviceName
@@ -81,7 +81,7 @@ def test_a_closed_plot_does_not_break_the_next_theme_change(
     for view in (ImageView(ACTIVE), SpectrumView(ACTIVE)):
         view.deleteLater()
     QApplication.sendPostedEvents(None, 0)
-    from PyQt6.QtCore import QCoreApplication, QEvent
+    from PySide6.QtCore import QCoreApplication, QEvent
 
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete.value)
     apply_theme(app, Theme.DARK)

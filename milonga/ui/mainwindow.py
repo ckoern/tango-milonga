@@ -2,9 +2,9 @@
 
 from collections.abc import Sequence
 
-from PyQt6.QtCore import QModelIndex, QPoint, Qt, pyqtSignal
-from PyQt6.QtGui import QAction, QCloseEvent, QKeySequence
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QModelIndex, QPoint, Qt, Signal
+from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
+from PySide6.QtWidgets import (
     QApplication,
     QDockWidget,
     QLabel,
@@ -76,7 +76,7 @@ def open_label(target: Target) -> str:
 class Inspector(QWidget):
     """Context for the navigator selection, with the action that opens it."""
 
-    openRequested = pyqtSignal(object)
+    openRequested = Signal(object)
 
     def __init__(self, tokens: Tokens, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -150,7 +150,7 @@ def _copy(text: str) -> None:
 
 
 class MainWindow(QMainWindow):
-    themeToggled = pyqtSignal(object)
+    themeToggled = Signal(object)
 
     def __init__(self, context: AppContext, tokens: Tokens, theme: Theme) -> None:
         super().__init__()
@@ -307,18 +307,16 @@ class MainWindow(QMainWindow):
 
     def _tab_menu(self, point: QPoint) -> None:
         bar = self.tabs.tabBar()
-        if bar is None:
-            return
         index = bar.tabAt(point)
         if index >= 0:
             popup(bar, point, self.tab_items(index))
 
-    def closeEvent(self, a0: QCloseEvent | None) -> None:
+    def closeEvent(self, event: QCloseEvent) -> None:
         """Detached panels are windows of their own; closing the main window
         closes them too, or the application would stay alive without them."""
         for window in list(self._windows.values()):
             window.close()
-        super().closeEvent(a0)
+        super().closeEvent(event)
 
     # ------------------------------------------------------------------- chrome
 

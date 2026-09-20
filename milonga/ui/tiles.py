@@ -7,9 +7,15 @@ branch of a tree.
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-from PyQt6.QtCore import QPoint, QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QContextMenuEvent, QMouseEvent, QPainter
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QPoint, QSize, Qt, Signal
+from PySide6.QtGui import (
+    QContextMenuEvent,
+    QMouseEvent,
+    QPainter,
+    QPaintEvent,
+    QResizeEvent,
+)
+from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -63,7 +69,7 @@ class MarkStrip(QWidget):
     def sizeHint(self) -> QSize:
         return QSize(len(self._marks) * (TICK_WIDTH + TICK_GAP), TICK_HEIGHT)
 
-    def paintEvent(self, a0: object) -> None:
+    def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.setPen(Qt.PenStyle.NoPen)
         x = 0
@@ -77,8 +83,8 @@ class MarkStrip(QWidget):
 
 
 class TileCard(QFrame):
-    activated = pyqtSignal(str)
-    menuRequested = pyqtSignal(str, QPoint)
+    activated = Signal(str)
+    menuRequested = Signal(str, QPoint)
 
     def __init__(self, tokens: Tokens, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -138,12 +144,12 @@ class TileCard(QFrame):
         self.right.setText(tile.footer_right)
         set_role(self, "alert", "true" if tile.alert else "false")
 
-    def contextMenuEvent(self, a0: QContextMenuEvent | None) -> None:
-        if a0 is not None and self._key:
-            self.menuRequested.emit(self._key, a0.pos())
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:
+        if self._key:
+            self.menuRequested.emit(self._key, event.pos())
 
-    def mouseDoubleClickEvent(self, a0: QMouseEvent | None) -> None:
-        super().mouseDoubleClickEvent(a0)
+    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
+        super().mouseDoubleClickEvent(event)
         if self._key:
             self.activated.emit(self._key)
 
@@ -151,8 +157,8 @@ class TileCard(QFrame):
 class TileGrid(QScrollArea):
     """Cards in a grid that reflows to the width it is given."""
 
-    activated = pyqtSignal(str)
-    menuRequested = pyqtSignal(str, QPoint)
+    activated = Signal(str)
+    menuRequested = Signal(str, QPoint)
 
     def __init__(self, tokens: Tokens, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -219,6 +225,6 @@ class TileGrid(QScrollArea):
             self.grid.addWidget(card, position // columns, position % columns)
             card.show()
 
-    def resizeEvent(self, a0: object) -> None:
-        super().resizeEvent(a0)  # type: ignore[arg-type]
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
         self._reflow()

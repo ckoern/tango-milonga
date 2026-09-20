@@ -4,8 +4,8 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TypeAlias
 
-from PyQt6.QtCore import QPoint
-from PyQt6.QtWidgets import QAbstractScrollArea, QMenu, QWidget
+from PySide6.QtCore import QPoint
+from PySide6.QtWidgets import QAbstractScrollArea, QMenu, QWidget
 
 
 @dataclass(frozen=True, slots=True)

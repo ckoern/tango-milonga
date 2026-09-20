@@ -6,9 +6,9 @@ server, so a mixed host is visible before reading a single number.
 
 from collections.abc import Sequence
 
-from PyQt6.QtCore import QPoint
-from PyQt6.QtGui import QHideEvent, QShowEvent
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
+from PySide6.QtCore import QPoint
+from PySide6.QtGui import QHideEvent, QShowEvent
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
 
 from milonga.core.enums import HostState
 from milonga.core.errors import ErrorReport
@@ -104,12 +104,12 @@ class OverviewPanel(Panel):
     def cards(self) -> dict[str, object]:
         return dict(self.grid.cards)
 
-    def showEvent(self, a0: QShowEvent | None) -> None:
-        super().showEvent(a0)
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
         self.refresh()
 
-    def hideEvent(self, a0: QHideEvent | None) -> None:
-        super().hideEvent(a0)
+    def hideEvent(self, event: QHideEvent) -> None:
+        super().hideEvent(event)
         self.runner.run(self.live.release(), label="release host watches")
 
     async def aclose(self) -> None:

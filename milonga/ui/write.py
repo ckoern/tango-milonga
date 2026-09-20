@@ -2,8 +2,8 @@
 
 from collections.abc import Callable, Sequence
 
-from PyQt6.QtCore import QObject, pyqtSignal
-from PyQt6.QtWidgets import QWidget
+from PySide6.QtCore import QObject, Signal
+from PySide6.QtWidgets import QWidget
 
 from milonga.core.commands import Command, Diff
 from milonga.ui.context import AppContext
@@ -15,9 +15,9 @@ from milonga.ui.theme import Tokens
 class WriteAction(QObject):
     """Runs commands through the confirmation flow and records what was written."""
 
-    done = pyqtSignal()
-    nothingToDo = pyqtSignal()
-    failed = pyqtSignal(object)
+    done = Signal()
+    nothingToDo = Signal()
+    failed = Signal(object)
 
     def __init__(
         self,

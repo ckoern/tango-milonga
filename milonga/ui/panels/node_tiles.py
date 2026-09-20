@@ -6,8 +6,8 @@ families of a domain, the instances of a server, the devices of a class.
 
 from collections.abc import Sequence
 
-from PyQt6.QtCore import QPoint
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
+from PySide6.QtCore import QPoint
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
 
 from milonga.core.enums import StateCategory
 from milonga.core.errors import ErrorReport, ObjectNotFound

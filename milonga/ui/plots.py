@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 import pyqtgraph as pg
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from milonga.core.model import AttributeSpec, AttributeValue
 from milonga.ui.theme import Tokens, set_role, theme_signals

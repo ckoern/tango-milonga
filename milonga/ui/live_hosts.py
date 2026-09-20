@@ -8,7 +8,7 @@ startup level, so a change event refreshes a host without any polling.
 from collections.abc import Sequence
 from functools import partial
 
-from PyQt6.QtCore import QObject, pyqtSignal
+from PySide6.QtCore import QObject, Signal
 
 from milonga.core.model import EventData, HostSnapshot, ServerSnapshot
 from milonga.core.monitor import Watch
@@ -22,7 +22,7 @@ from milonga.ui.context import AppContext
 
 
 class LiveHosts(QObject):
-    changed = pyqtSignal(str)
+    changed = Signal(str)
 
     def __init__(self, context: AppContext, parent: QObject | None = None) -> None:
         super().__init__(parent)

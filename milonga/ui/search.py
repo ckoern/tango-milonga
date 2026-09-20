@@ -1,7 +1,8 @@
 """The command palette: one box that resolves any object in the control system."""
 
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtGui import QKeyEvent
+from PySide6.QtWidgets import (
     QDialog,
     QLabel,
     QLineEdit,
@@ -21,7 +22,7 @@ DEBOUNCE_MS = 180
 
 
 class SearchDialog(QDialog):
-    targetChosen = pyqtSignal(object)
+    targetChosen = Signal(object)
 
     def __init__(self, context: AppContext, tokens: Tokens, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -53,11 +54,10 @@ class SearchDialog(QDialog):
         self.input.returnPressed.connect(self._choose_current)
         self.results.itemActivated.connect(self._choose)
 
-    def keyPressEvent(self, a0: object) -> None:
-        key = getattr(a0, "key", lambda: None)()
-        if key in (Qt.Key.Key_Down, Qt.Key.Key_Up) and self.results.count():
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if event.key() in (Qt.Key.Key_Down, Qt.Key.Key_Up) and self.results.count():
             self.results.setFocus()
-        super().keyPressEvent(a0)  # type: ignore[arg-type]
+        super().keyPressEvent(event)
 
     def _search(self) -> None:
         text = self.input.text().strip()

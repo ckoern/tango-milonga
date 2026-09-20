@@ -2,8 +2,8 @@
 
 from collections.abc import Sequence
 
-from PyQt6.QtCore import QAbstractItemModel, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QAbstractItemModel, Signal
+from PySide6.QtWidgets import (
     QAbstractItemView,
     QFormLayout,
     QHeaderView,
@@ -25,7 +25,7 @@ from milonga.ui.widgets import ErrorBanner, HeaderBar
 class Panel(QWidget):
     """A document in the centre area, identified by its target."""
 
-    titleChanged = pyqtSignal(str)
+    titleChanged = Signal(str)
 
     def __init__(
         self,

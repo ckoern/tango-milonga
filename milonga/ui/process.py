@@ -7,8 +7,8 @@ a stop asks the same question wherever it is started from.
 from collections.abc import Awaitable, Callable, Sequence
 from typing import TypeAlias
 
-from PyQt6.QtCore import QObject, pyqtSignal
-from PyQt6.QtWidgets import QWidget
+from PySide6.QtCore import QObject, Signal
+from PySide6.QtWidgets import QWidget
 
 from milonga.core.model import HostSnapshot
 from milonga.core.names import ServerName
@@ -20,8 +20,8 @@ Operation: TypeAlias = Callable[[str, ServerName], Awaitable[None]]
 
 
 class ProcessActions(QObject):
-    done = pyqtSignal()
-    failed = pyqtSignal(object)
+    done = Signal()
+    failed = Signal(object)
 
     def __init__(self, context: AppContext, runner: TaskRunner, widget: QWidget) -> None:
         super().__init__(widget)

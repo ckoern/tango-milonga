@@ -1,6 +1,6 @@
 """Free properties: site configuration that belongs to no device."""
 
-from PyQt6.QtWidgets import QWidget
+from PySide6.QtWidgets import QWidget
 
 from milonga.core.commands import PropertyTarget
 from milonga.core.errors import ErrorReport

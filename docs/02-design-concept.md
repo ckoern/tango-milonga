@@ -1,6 +1,6 @@
 # Design concept — Milonga
 
-A PyQt6 replacement for Astor + Jive (with an ATK-Panel-class device view).
+A PySide6 replacement for Astor + Jive (with an ATK-Panel-class device view).
 
 ---
 
@@ -200,8 +200,14 @@ tests/
   integration/              # optional, docker tango-cs + TangoTest + Starter
 ```
 
-Dependencies: `PyQt6`, `pytango`, `pyqtgraph` (plots/images), `qasync`,
+Dependencies: `PySide6`, `pytango`, `pyqtgraph` (plots/images), `qasync`,
 `numpy`, `platformdirs`. Nothing else in the core.
+
+The binding is PySide6, the Qt Company's own, under the LGPL: a facility tool
+that may be handed on should not carry the GPL obligation PyQt6 would bring.
+Qt owns a widget that has a parent and shiboken keeps its Python side alive
+with it, so widgets are destroyed when their window is, not when the last
+Python reference to them goes.
 
 ---
 

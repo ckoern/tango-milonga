@@ -2,11 +2,12 @@
 
 from typing import Any
 
-from PyQt6.QtCore import QModelIndex, QRect, QSize, Qt
-from PyQt6.QtGui import QColor, QFontMetrics, QPainter, QPen
-from PyQt6.QtWidgets import QStyle, QStyledItemDelegate, QStyleOptionViewItem
+from PySide6.QtCore import QRect, QSize, Qt
+from PySide6.QtGui import QColor, QFontMetrics, QPainter, QPen
+from PySide6.QtWidgets import QStyle, QStyledItemDelegate, QStyleOptionViewItem
 
 from milonga.core.enums import StateCategory
+from milonga.ui.models import Index
 from milonga.ui.models.tree import CATEGORY_ROLE, DETAIL_ROLE
 from milonga.ui.theme import Tokens, category_color
 
@@ -14,24 +15,30 @@ DOT_SIZE = 9
 DOT_MARGIN = 7
 
 
+def category_of(index: Index) -> StateCategory | None:
+    """Qt carries a str-valued enum as a plain string, so read it back by value."""
+    try:
+        return StateCategory(index.data(CATEGORY_ROLE))
+    except ValueError:
+        return None
+
+
 class NodeDelegate(QStyledItemDelegate):
     def __init__(self, tokens: Tokens, parent: Any = None) -> None:
         super().__init__(parent)
         self.tokens = tokens
 
-    def sizeHint(self, option: QStyleOptionViewItem, index: QModelIndex) -> QSize:
+    def sizeHint(self, option: QStyleOptionViewItem, index: Index) -> QSize:
         size = super().sizeHint(option, index)
-        extra = DOT_SIZE + DOT_MARGIN if index.data(CATEGORY_ROLE) is not None else 0
+        extra = DOT_SIZE + DOT_MARGIN if category_of(index) is not None else 0
         detail = str(index.data(DETAIL_ROLE) or "")
         if detail:
             extra += QFontMetrics(option.font).horizontalAdvance(detail) + 12
         return QSize(size.width() + extra, max(size.height(), 22))
 
     def paint(
-        self, painter: QPainter | None, option: QStyleOptionViewItem, index: QModelIndex
+        self, painter: QPainter, option: QStyleOptionViewItem, index: Index
     ) -> None:
-        if painter is None:
-            return
         self.initStyleOption(option, index)
         widget = option.widget
         style = widget.style() if widget is not None else None
@@ -42,8 +49,8 @@ class NodeDelegate(QStyledItemDelegate):
         painter.save()
         rect = option.rect
         left = rect.left() + 2
-        category = index.data(CATEGORY_ROLE)
-        if isinstance(category, StateCategory):
+        category = category_of(index)
+        if category is not None:
             colour = category_color(self.tokens, category)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
             painter.setBrush(colour)

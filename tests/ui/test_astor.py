@@ -1,4 +1,5 @@
 import pytest
+from PySide6.QtGui import QHideEvent
 
 from milonga.core.backend.fake import FakeBackend
 from milonga.core.enums import HostState, ServerRunState, StateCategory
@@ -156,7 +157,7 @@ async def test_hiding_the_overview_releases_its_watches(
     # the unreachable host has no event channel, so it is polled, not subscribed
     assert len(overview.live.watched) == 6
     assert backend.subscription_count == 5
-    overview.hideEvent(None)
+    overview.hideEvent(QHideEvent())
     await overview.idle()
     assert backend.subscription_count == 0
     assert overview.live.watched == frozenset()

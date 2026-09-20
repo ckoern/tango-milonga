@@ -4,9 +4,10 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
 
-from PyQt6.QtCore import QAbstractTableModel, QModelIndex, QObject, Qt
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, QObject, Qt
 
 from milonga.core.enums import StateCategory
+from milonga.ui.models import Index
 from milonga.ui.models.tree import CATEGORY_ROLE
 from milonga.ui.theme import mono_font
 
@@ -49,15 +50,15 @@ class ObjectTableModel(QAbstractTableModel, Generic[T]):
         self._rows.append(row)
         self.endInsertRows()
 
-    def row_at(self, index: QModelIndex) -> T | None:
+    def row_at(self, index: Index) -> T | None:
         if not index.isValid() or not 0 <= index.row() < len(self._rows):
             return None
         return self._rows[index.row()]
 
-    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
+    def rowCount(self, parent: Index = QModelIndex()) -> int:
         return 0 if parent.isValid() else len(self._rows)
 
-    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
+    def columnCount(self, parent: Index = QModelIndex()) -> int:
         return 0 if parent.isValid() else len(self._columns)
 
     def headerData(
@@ -70,7 +71,7 @@ class ObjectTableModel(QAbstractTableModel, Generic[T]):
             return self._columns[section].title
         return None
 
-    def data(self, index: QModelIndex, role: int = int(Qt.ItemDataRole.DisplayRole)) -> Any:
+    def data(self, index: Index, role: int = int(Qt.ItemDataRole.DisplayRole)) -> Any:
         row = self.row_at(index)
         if row is None:
             return None

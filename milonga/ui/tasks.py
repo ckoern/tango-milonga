@@ -8,8 +8,8 @@ import asyncio
 from collections.abc import Awaitable, Callable, Coroutine
 from typing import Any, TypeAlias, TypeVar
 
-from PyQt6 import sip
-from PyQt6.QtCore import QObject
+from PySide6.QtCore import QObject
+from shiboken6 import isValid
 
 from milonga.core.errors import ErrorReport, TangoError
 from milonga.core.tasks import drain_tasks
@@ -106,4 +106,4 @@ class TaskRunner(QObject):
             self._journal.report(report, label or self._context)
 
     def _owner_gone(self) -> bool:
-        return self._owner is not None and sip.isdeleted(self._owner)
+        return self._owner is not None and not isValid(self._owner)

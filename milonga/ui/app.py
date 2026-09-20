@@ -11,7 +11,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 import qasync
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication
 
 from milonga.core.backend.protocol import TangoBackend
 from milonga.core.backend.readonly import ReadOnlyBackend

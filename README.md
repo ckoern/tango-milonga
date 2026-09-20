@@ -127,7 +127,7 @@ control system.
 python3 -m venv .venv
 .venv/bin/pip install -e '.[dev,tango]'
 
-.venv/bin/pytest                    # 371 tests, no control system needed
+.venv/bin/pytest                    # 374 tests, no control system needed
 .venv/bin/pytest --integration      # plus 28 against the control system in TANGO_HOST
 .venv/bin/mypy milonga tests
 .venv/bin/ruff check .

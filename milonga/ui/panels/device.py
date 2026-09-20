@@ -9,9 +9,9 @@ selected attribute.
 from collections.abc import Callable
 from typing import Any, TypeVar
 
-from PyQt6.QtCore import QModelIndex, QPoint, Qt
-from PyQt6.QtGui import QHideEvent, QShowEvent
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QModelIndex, QPoint, Qt
+from PySide6.QtGui import QHideEvent, QShowEvent
+from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QCheckBox,
@@ -195,10 +195,7 @@ class DevicePanel(Panel):
 
     def _edit_config(self, spec: AttributeSpec | None = None) -> None:
         if spec is None:
-            selection = self.config_view.selectionModel()
-            if selection is None:
-                return
-            spec = self.specs.row_at(selection.currentIndex())
+            spec = self.specs.row_at(self.config_view.selectionModel().currentIndex())
         if spec is None or self.context.read_only:
             return
         dialog = AttributeConfigDialog(spec, self.tokens, self)
@@ -254,10 +251,7 @@ class DevicePanel(Panel):
         return items
 
     def _selected_polling(self) -> PollingEntry | None:
-        selection = self.polling_view.selectionModel()
-        if selection is None:
-            return None
-        return self.polling.row_at(selection.currentIndex())
+        return self.polling.row_at(self.polling_view.selectionModel().currentIndex())
 
     def _edit_polling(self, name: str = "") -> None:
         if self.context.read_only:
@@ -385,12 +379,12 @@ class DevicePanel(Panel):
 
     # ------------------------------------------------------------------ lifecycle
 
-    def showEvent(self, a0: QShowEvent | None) -> None:
-        super().showEvent(a0)
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
         self.set_live(True)
 
-    def hideEvent(self, a0: QHideEvent | None) -> None:
-        super().hideEvent(a0)
+    def hideEvent(self, event: QHideEvent) -> None:
+        super().hideEvent(event)
         self.set_live(False)
 
     def set_live(self, enabled: bool) -> None:

@@ -1,6 +1,6 @@
 import pytest
-from PyQt6.QtCore import QModelIndex
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtCore import QModelIndex
+from PySide6.QtWidgets import QApplication
 
 from milonga.core.errors import ObjectNotFound
 from milonga.ui.models.tree import LazyTreeModel, NodeKind, TreeNode

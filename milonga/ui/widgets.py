@@ -1,7 +1,7 @@
 """Small shared widgets: state chips, section headings, error banners."""
 
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -104,7 +104,7 @@ class HeaderBar(QWidget):
 class WriteBar(QWidget):
     """Writing a value is always an explicit action, never a side effect."""
 
-    writeRequested = pyqtSignal(str, object)
+    writeRequested = Signal(str, object)
 
     def __init__(
         self, tokens: Tokens, *, read_only: bool = False, parent: QWidget | None = None
@@ -172,7 +172,7 @@ class WriteBar(QWidget):
 class CommandBar(QWidget):
     """Runs one command with a typed argument and shows what came back."""
 
-    executeRequested = pyqtSignal(str, object)
+    executeRequested = Signal(str, object)
 
     def __init__(
         self, tokens: Tokens, *, read_only: bool = False, parent: QWidget | None = None

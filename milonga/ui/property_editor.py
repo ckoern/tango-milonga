@@ -5,10 +5,10 @@ diff, asks again for anything destructive, and only then writes — and what it
 wrote lands in the journal with an undo.
 """
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
-from PyQt6.QtCore import QPoint, Qt, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QPoint, Qt, Signal
+from PySide6.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
     QHeaderView,
@@ -37,8 +37,8 @@ from milonga.ui.write import WriteAction
 
 
 class PropertyEditor(QWidget):
-    applied = pyqtSignal()
-    failed = pyqtSignal(object)
+    applied = Signal()
+    failed = Signal(object)
 
     def __init__(
         self,
@@ -137,8 +137,6 @@ class PropertyEditor(QWidget):
 
     def selected_rows(self) -> list[int]:
         selection = self.view.selectionModel()
-        if selection is None:
-            return []
         return sorted({index.row() for index in selection.selectedRows()})
 
     def selected(self) -> PropertyRow | None:
@@ -293,7 +291,7 @@ class PropertyEditor(QWidget):
         return tuple(PropertyEntry(row.name, row.values) for row in self.model.pending)
 
 
-def _button(text: str, slot: object) -> QPushButton:
+def _button(text: str, slot: Callable[[], None]) -> QPushButton:
     button = QPushButton(text)
-    button.clicked.connect(slot)  # type: ignore[arg-type]
+    button.clicked.connect(slot)
     return button

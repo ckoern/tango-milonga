@@ -95,7 +95,7 @@ def test_commands_cover_both_writes_and_deletions(tokens: Tokens) -> None:
 
 
 def test_multi_value_rows_are_not_edited_inline(tokens: Tokens) -> None:
-    from PyQt6.QtCore import Qt
+    from PySide6.QtCore import Qt
 
     model = PropertyEditorModel(tokens)
     model.set_entries([PropertyEntry("polled_attr", ("a", "1"))])

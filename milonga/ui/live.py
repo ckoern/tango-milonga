@@ -6,7 +6,7 @@ keeps one subscription per attribute however many views ask for it.
 
 from collections.abc import Sequence
 
-from PyQt6.QtCore import QObject, pyqtSignal
+from PySide6.QtCore import QObject, Signal
 
 from milonga.core.enums import DataSource
 from milonga.core.errors import ErrorReport
@@ -19,7 +19,7 @@ from milonga.ui.context import AppContext
 class LiveAttributes(QObject):
     """Owns the watches for a set of attributes and keeps their last value."""
 
-    changed = pyqtSignal(object)
+    changed = Signal(object)
 
     def __init__(self, context: AppContext, parent: QObject | None = None) -> None:
         super().__init__(parent)

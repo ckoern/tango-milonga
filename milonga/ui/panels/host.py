@@ -6,9 +6,11 @@ Starter itself does.
 """
 
 
-from PyQt6.QtCore import QPoint, Qt
-from PyQt6.QtGui import QHideEvent, QShowEvent
-from PyQt6.QtWidgets import (
+from collections.abc import Callable
+
+from PySide6.QtCore import QPoint, Qt
+from PySide6.QtGui import QHideEvent, QShowEvent
+from PySide6.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
     QPlainTextEdit,
@@ -135,20 +137,20 @@ class HostPanel(Panel):
         row.addWidget(self.stop_all_button)
         return row
 
-    def _button(self, text: str, slot: object, enabled: bool) -> QPushButton:
+    def _button(self, text: str, slot: Callable[[], None], enabled: bool) -> QPushButton:
         button = QPushButton(text, self)
-        button.clicked.connect(slot)  # type: ignore[arg-type]
+        button.clicked.connect(slot)
         button.setEnabled(enabled)
         return button
 
     # ------------------------------------------------------------------ lifecycle
 
-    def showEvent(self, a0: QShowEvent | None) -> None:
-        super().showEvent(a0)
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
         self.refresh()
 
-    def hideEvent(self, a0: QHideEvent | None) -> None:
-        super().hideEvent(a0)
+    def hideEvent(self, event: QHideEvent) -> None:
+        super().hideEvent(event)
         self.runner.run(self.live.release(), label="release host watch")
 
     async def aclose(self) -> None:
@@ -281,8 +283,6 @@ class HostPanel(Panel):
 
     def selected_servers(self) -> tuple[ServerName, ...]:
         selection = self.view.selectionModel()
-        if selection is None:
-            return ()
         names: list[ServerName] = []
         for index in selection.selectedIndexes():
             node = self.model.node(index)

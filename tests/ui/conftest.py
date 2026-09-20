@@ -1,5 +1,9 @@
+from collections.abc import Iterator
+
 import pytest
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtCore import QEvent
+from PySide6.QtWidgets import QApplication
+from shiboken6 import isValid
 
 from milonga.core.backend.demo import build_demo_backend
 from milonga.core.backend.fake import FakeBackend
@@ -17,6 +21,23 @@ from milonga.ui.theme import LIGHT, Theme, Tokens, apply_theme
 def app(qapp: QApplication) -> QApplication:
     """pytest-qt owns the QApplication so it outlives every widget."""
     return qapp
+
+
+@pytest.fixture(autouse=True)
+def close_windows(app: QApplication) -> Iterator[None]:
+    """Destroy what a test leaves behind.
+
+    Qt owns a widget that has a parent, and shiboken keeps the Python side of
+    it alive with the C++ object, so windows a test never closes stay alive
+    for the whole session and every later restyle walks them. Only this
+    project's own windows are deleted: the top level also holds widgets Qt
+    and pyqtgraph own, such as menus and tooltips.
+    """
+    yield
+    for widget in list(app.topLevelWidgets()):
+        if isValid(widget) and type(widget).__module__.startswith("milonga."):
+            widget.deleteLater()
+    app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
 
 @pytest.fixture(scope="session")

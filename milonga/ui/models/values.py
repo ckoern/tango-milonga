@@ -3,13 +3,14 @@
 from collections.abc import Sequence
 from typing import Any
 
-from PyQt6.QtCore import QAbstractTableModel, QModelIndex, QObject, Qt
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, QObject, Qt
 
 from milonga.core.enums import AttrDataFormat, StateCategory
 from milonga.core.model import AttributeSpec
 from milonga.core.names import AttributeRef, DeviceName
 from milonga.ui.format import format_time, format_value
 from milonga.ui.live import LiveAttributes
+from milonga.ui.models import Index
 from milonga.ui.models.tree import CATEGORY_ROLE
 from milonga.ui.theme import mono_font, quality_category
 
@@ -50,7 +51,7 @@ class AttributeValuesModel(QAbstractTableModel):
         self._specs = sorted(specs, key=sort_key)
         self.endResetModel()
 
-    def spec_at(self, index: QModelIndex) -> AttributeSpec | None:
+    def spec_at(self, index: Index) -> AttributeSpec | None:
         row = index.row()
         if not index.isValid() or not 0 <= row < len(self._specs):
             return None
@@ -69,10 +70,10 @@ class AttributeValuesModel(QAbstractTableModel):
                 return row
         return -1
 
-    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
+    def rowCount(self, parent: Index = QModelIndex()) -> int:
         return 0 if parent.isValid() else len(self._specs)
 
-    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
+    def columnCount(self, parent: Index = QModelIndex()) -> int:
         return 0 if parent.isValid() else len(COLUMNS)
 
     def headerData(
@@ -85,7 +86,7 @@ class AttributeValuesModel(QAbstractTableModel):
             return COLUMNS[section]
         return None
 
-    def data(self, index: QModelIndex, role: int = int(Qt.ItemDataRole.DisplayRole)) -> Any:
+    def data(self, index: Index, role: int = int(Qt.ItemDataRole.DisplayRole)) -> Any:
         spec = self.spec_at(index)
         if spec is None:
             return None

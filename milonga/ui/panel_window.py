@@ -1,8 +1,8 @@
 """A panel in a window of its own, for looking at two devices at once."""
 
-from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtGui import QAction, QCloseEvent
-from PyQt6.QtWidgets import QMainWindow, QToolBar, QWidget
+from PySide6.QtCore import Signal
+from PySide6.QtGui import QAction, QCloseEvent
+from PySide6.QtWidgets import QMainWindow, QToolBar, QWidget
 
 from milonga.ui.panels.base import Panel
 
@@ -17,8 +17,8 @@ class PanelWindow(QMainWindow):
     like any other window, which a tool window does not get.
     """
 
-    closed = pyqtSignal(object)
-    reattachRequested = pyqtSignal(object)
+    closed = Signal(object)
+    reattachRequested = Signal(object)
 
     def __init__(self, panel: Panel) -> None:
         super().__init__(None)
@@ -55,9 +55,9 @@ class PanelWindow(QMainWindow):
         if self._panel is not None:
             self.reattachRequested.emit(self._panel)
 
-    def closeEvent(self, a0: QCloseEvent | None) -> None:
+    def closeEvent(self, event: QCloseEvent) -> None:
         panel = self._panel
         self._panel = None
         if panel is not None:
             self.closed.emit(panel)
-        super().closeEvent(a0)
+        super().closeEvent(event)

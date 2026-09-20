@@ -4,7 +4,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from PyQt6.QtCore import QObject, pyqtSignal
+from PySide6.QtCore import QObject, Signal
 
 from milonga.compat import StrEnum
 from milonga.core.backend.protocol import TangoBackend
@@ -101,7 +101,7 @@ class JournalEntry:
 class Journal(QObject):
     """Everything the session did, and everything that failed."""
 
-    entryAdded = pyqtSignal(object)
+    entryAdded = Signal(object)
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)

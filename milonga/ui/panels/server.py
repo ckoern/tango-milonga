@@ -1,6 +1,6 @@
 """Server panel: registration, served classes and devices."""
 
-from PyQt6.QtWidgets import QTabWidget, QWidget
+from PySide6.QtWidgets import QTabWidget, QWidget
 
 from milonga.core.enums import StateCategory
 from milonga.core.errors import ErrorReport
