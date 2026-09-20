@@ -7,6 +7,8 @@ name = "milonga"
 version = "0.1.0"
 description = "Qt administration console for Tango Controls"
 readme = "README.md"
+license = "GPL-3.0-or-later"
+license-files = ["LICEN[CS]E*"]
 requires-python = ">=3.10"
 dependencies = [
     "numpy>=1.24",
@@ -14,10 +16,12 @@ dependencies = [
     "shiboken6>=6.6",
     "pyqtgraph>=0.13",
     "qasync>=0.27",
+    "pytango>=9.4"
 ]
 
+[project.urls]
+Homepage = "https://github.com/ckoern/tango-milonga/tree/main"
 [project.optional-dependencies]
-tango = ["pytango>=9.4"]
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.23",
