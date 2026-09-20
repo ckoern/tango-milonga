@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
 from milonga.core.names import DeviceName, ServerName
 from milonga.ui.context import AppContext, Target
 from milonga.ui.tasks import TaskRunner
-from milonga.ui.theme import Tokens, mono_font
+from milonga.ui.theme import Tokens, mono_font, set_role
 
 RESULT_LIMIT = 40
 DEBOUNCE_MS = 180
@@ -36,7 +36,7 @@ class SearchDialog(QDialog):
         self.results = QListWidget(self)
         self.results.setFont(mono_font())
         self.hint = QLabel("Enter opens the selected object", self)
-        self.hint.setStyleSheet(f"color: {tokens.ink_3};")
+        set_role(self.hint, "role", "muted")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)

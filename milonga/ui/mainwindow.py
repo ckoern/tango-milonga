@@ -2,9 +2,10 @@
 
 from collections.abc import Sequence
 
-from PyQt6.QtCore import QModelIndex, Qt, pyqtSignal
+from PyQt6.QtCore import QModelIndex, QPoint, Qt, pyqtSignal
 from PyQt6.QtGui import QAction, QKeySequence
 from PyQt6.QtWidgets import (
+    QApplication,
     QDockWidget,
     QLabel,
     QMainWindow,
@@ -16,7 +17,8 @@ from PyQt6.QtWidgets import (
 )
 
 from milonga.core.enums import StateCategory
-from milonga.ui.context import AppContext, JournalEntry, JournalKind, Target
+from milonga.ui.context import AppContext, JournalEntry, JournalKind, Target, TargetKind
+from milonga.ui.menus import MenuEntry, MenuItems, popup
 from milonga.ui.models.tables import Column, ObjectTableModel
 from milonga.ui.models.tree import TreeNode
 from milonga.ui.navigator import Navigator, Scope, target_of
@@ -51,6 +53,23 @@ def journal_columns() -> list[Column[JournalEntry]]:
 UNDO_COLUMN = 3
 
 
+NOTHING_TO_OPEN = "Select something to open"
+
+_PANEL_NAMES: dict[TargetKind, str] = {
+    TargetKind.SYSTEM: "system overview",
+    TargetKind.DEVICE: "device panel",
+    TargetKind.SERVER: "server panel",
+    TargetKind.CLASS: "class panel",
+    TargetKind.OBJECT: "free properties",
+    TargetKind.HOST: "host panel",
+}
+
+
+def open_label(target: Target) -> str:
+    """Says what opens, so the button explains itself."""
+    return f"Open {_PANEL_NAMES[target.kind]}"
+
+
 class Inspector(QWidget):
     """Context for the navigator selection, with the action that opens it."""
 
@@ -59,8 +78,9 @@ class Inspector(QWidget):
     def __init__(self, tokens: Tokens, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.form = InfoForm(tokens, self)
-        self.open_button = QPushButton("Open", self)
+        self.open_button = QPushButton(NOTHING_TO_OPEN, self)
         self.open_button.setEnabled(False)
+        self.open_button.setToolTip("Opens the selection in a tab — the same as double-clicking it")
         self.open_button.clicked.connect(self._open)
         self._target: Target | None = None
 
@@ -76,6 +96,7 @@ class Inspector(QWidget):
             self.form.set_fields([("Selection", "—"), ("Kind", "—"), ("Detail", "—")])
             self._target = None
             self.open_button.setEnabled(False)
+            self.open_button.setText(NOTHING_TO_OPEN)
             return
         self._target = target_of(node)
         self.form.set_fields(
@@ -87,10 +108,24 @@ class Inspector(QWidget):
             ]
         )
         self.open_button.setEnabled(self._target is not None)
+        self.open_button.setText(open_label(self._target) if self._target else NOTHING_TO_OPEN)
 
     def _open(self) -> None:
         if self._target is not None:
             self.openRequested.emit(self._target)
+
+
+def _journal_text(entry: JournalEntry) -> str:
+    stamp = entry.at.strftime("%Y-%m-%d %H:%M:%S")
+    return f"{stamp}  {entry.kind.value}  {entry.summary}" + (
+        f"\n{entry.detail}" if entry.detail else ""
+    )
+
+
+def _copy(text: str) -> None:
+    clipboard = QApplication.clipboard()
+    if clipboard is not None:
+        clipboard.setText(text)
 
 
 class MainWindow(QMainWindow):
@@ -205,16 +240,34 @@ class MainWindow(QMainWindow):
         holder.banner.setVisible(False)
         self.journal_view = holder.make_table(self.journal_model)
         self.journal_view.setToolTip("Click “undo” to reverse a write")
+        self.journal_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.journal_view.customContextMenuRequested.connect(self._journal_menu)
         layout = QVBoxLayout(holder)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.journal_view)
         return holder
 
+    def journal_items(self, entry: JournalEntry) -> MenuItems:
+        items: list[MenuEntry | None] = []
+        if entry.undoable:
+            items.append(MenuEntry("Undo", lambda: self._undo(entry), not self.context.read_only))
+        items.append(MenuEntry("Copy", lambda: _copy(_journal_text(entry))))
+        return items
+
+    def _journal_menu(self, point: QPoint) -> None:
+        entry = self.journal_model.row_at(self.journal_view.indexAt(point))
+        if entry is not None:
+            popup(self.journal_view, point, self.journal_items(entry))
+
     def _journal_clicked(self, index: QModelIndex) -> None:
         if index.column() != UNDO_COLUMN:
             return
         entry = self.journal_model.row_at(index)
-        if entry is None or not entry.undoable or entry.command is None:
+        if entry is not None:
+            self._undo(entry)
+
+    def _undo(self, entry: JournalEntry) -> None:
+        if not entry.undoable or entry.command is None:
             return
         command = entry.command
         self._runner.run(

@@ -31,8 +31,10 @@ class NodeKind(StrEnum):
     MESSAGE = "message"
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, eq=False)
 class TreeNode:
+    """Compared by identity: two nodes with the same label are still two rows."""
+
     kind: NodeKind
     label: str
     payload: Any = None
@@ -43,12 +45,6 @@ class TreeNode:
     parent: "TreeNode | None" = None
     children: "list[TreeNode] | None" = None
     loading: bool = False
-
-    @property
-    def row(self) -> int:
-        if self.parent is None or self.parent.children is None:
-            return 0
-        return self.parent.children.index(self)
 
     @property
     def loaded(self) -> bool:
@@ -96,7 +92,14 @@ class LazyTreeModel(QAbstractItemModel):
         return pointer if isinstance(pointer, TreeNode) else None
 
     def index_of(self, node: TreeNode) -> QModelIndex:
-        return self.createIndex(node.row, 0, node)
+        return self.createIndex(self._row_of(node), 0, node)
+
+    def _row_of(self, node: TreeNode) -> int:
+        siblings = self._roots if node.parent is None else (node.parent.children or [])
+        for row, sibling in enumerate(siblings):
+            if sibling is node:
+                return row
+        raise LookupError(f"{node.label} is not in the tree")
 
     def reload(self, index: QModelIndex) -> None:
         node = self.node(index)
@@ -119,7 +122,7 @@ class LazyTreeModel(QAbstractItemModel):
         node = self.node(index)
         if node is None or node.parent is None:
             return QModelIndex()
-        return self.createIndex(node.parent.row, 0, node.parent)
+        return self.createIndex(self._row_of(node.parent), 0, node.parent)
 
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
         if parent.column() > 0:

@@ -6,12 +6,14 @@ are watched together; a spectrum or an image is watched only while it is the
 selected attribute.
 """
 
+from collections.abc import Callable
 from typing import Any
 
-from PyQt6.QtCore import QModelIndex, Qt
+from PyQt6.QtCore import QModelIndex, QPoint, Qt
 from PyQt6.QtGui import QHideEvent, QShowEvent
 from PyQt6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QCheckBox,
     QHBoxLayout,
     QLabel,
@@ -30,6 +32,7 @@ from milonga.core.enums import (
     PollableKind,
     StateCategory,
     TangoState,
+    TangoType,
 )
 from milonga.core.errors import ErrorReport
 from milonga.core.model import (
@@ -44,13 +47,14 @@ from milonga.ui.context import AppContext, Target
 from milonga.ui.dialogs import AttributeConfigDialog
 from milonga.ui.format import format_scalar
 from milonga.ui.live import LiveAttributes
+from milonga.ui.menus import SEPARATOR, MenuEntry, MenuItems, popup
 from milonga.ui.models.tables import ObjectTableModel
 from milonga.ui.models.values import AttributeValuesModel
 from milonga.ui.panels.base import InfoForm, Panel
 from milonga.ui.panels.columns import attribute_columns, command_columns, polling_columns
 from milonga.ui.plots import ImageView, SpectrumView
 from milonga.ui.property_editor import PropertyEditor
-from milonga.ui.theme import Tokens, device_state_category
+from milonga.ui.theme import Tokens, device_state_category, set_role
 from milonga.ui.widgets import CommandBar, WriteBar
 from milonga.ui.wizards import PollingDialog
 from milonga.ui.write import WriteAction
@@ -111,7 +115,7 @@ class DevicePanel(Panel):
         self.pause = QCheckBox("Pause", page)
         self.pause.toggled.connect(self.live.set_paused)
         self.summary = QLabel(page)
-        self.summary.setStyleSheet(f"color: {self.tokens.ink_3};")
+        set_role(self.summary, "role", "muted")
 
         controls = QHBoxLayout()
         controls.setContentsMargins(0, 0, 0, 0)
@@ -125,7 +129,7 @@ class DevicePanel(Panel):
 
         self.blank = QLabel("Select a spectrum or image attribute to plot it", page)
         self.blank.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.blank.setStyleSheet(f"color: {self.tokens.ink_3};")
+        set_role(self.blank, "role", "muted")
         self.detail_stack = QStackedWidget(page)
         self.detail_stack.addWidget(self.blank)
         self.detail_stack.setMinimumHeight(240)
@@ -152,6 +156,10 @@ class DevicePanel(Panel):
 
     def make_value_view(self) -> QAbstractItemView:
         view = self.make_table(self.values, chips=[3], stretch=[1])
+        _menu_on(
+            view,
+            lambda point: self._table_menu(view, self.values.spec_at, self.attribute_items, point),
+        )
         view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         selection = view.selectionModel()
         if selection is not None:
@@ -161,6 +169,12 @@ class DevicePanel(Panel):
     def _config_tab(self) -> QWidget:
         page = QWidget(self)
         self.config_view = self.make_table(self.specs)
+        _menu_on(
+            self.config_view,
+            lambda point: self._table_menu(
+                self.config_view, self.specs.row_at, self.attribute_items, point
+            ),
+        )
         self.config_button = QPushButton("Edit…", page)
         self.config_button.setEnabled(not self.context.read_only)
         self.config_button.clicked.connect(self._edit_config)
@@ -177,12 +191,13 @@ class DevicePanel(Panel):
         layout.addWidget(self.config_view, 1)
         return page
 
-    def _edit_config(self) -> None:
-        selection = self.config_view.selectionModel()
-        if selection is None:
-            return
-        spec = self.specs.row_at(selection.currentIndex())
+    def _edit_config(self, spec: AttributeSpec | None = None) -> None:
         if spec is None:
+            selection = self.config_view.selectionModel()
+            if selection is None:
+                return
+            spec = self.specs.row_at(selection.currentIndex())
+        if spec is None or self.context.read_only:
             return
         dialog = AttributeConfigDialog(spec, self.tokens, self)
         if not dialog.exec():
@@ -201,6 +216,12 @@ class DevicePanel(Panel):
         page = QWidget(self)
         self.polling = ObjectTableModel(polling_columns(), self)
         self.polling_view = self.make_table(self.polling)
+        _menu_on(
+            self.polling_view,
+            lambda point: self._table_menu(
+                self.polling_view, self.polling.row_at, self.polling_items, point
+            ),
+        )
         writable = not self.context.read_only
         self.poll_button = QPushButton("Poll…", page)
         self.poll_button.setEnabled(writable)
@@ -236,12 +257,16 @@ class DevicePanel(Panel):
             return None
         return self.polling.row_at(selection.currentIndex())
 
-    def _edit_polling(self) -> None:
+    def _edit_polling(self, name: str = "") -> None:
+        if self.context.read_only:
+            return
         current = self._selected_polling()
+        if name:
+            current = next((entry for entry in self.polling.rows if entry.name == name), None)
         dialog = PollingDialog(
             self._pollable(),
             self.tokens,
-            selected=current.name if current else "",
+            selected=name or (current.name if current else ""),
             period_ms=current.period_ms if current else 1000,
             parent=self,
         )
@@ -250,9 +275,9 @@ class DevicePanel(Panel):
         name, kind = dialog.chosen()
         self.write.execute([SetPolling(self.device, name, kind, dialog.period_ms())])
 
-    def _stop_polling(self) -> None:
-        current = self._selected_polling()
-        if current is None:
+    def _stop_polling(self, current: PollingEntry | None = None) -> None:
+        current = current or self._selected_polling()
+        if current is None or self.context.read_only:
             return
         self.write.execute([SetPolling(self.device, current.name, current.kind, 0)])
 
@@ -263,9 +288,84 @@ class DevicePanel(Panel):
             on_error=self._failed,
         )
 
+    # ----------------------------------------------------------------- right click
+
+    def attribute_items(self, spec: AttributeSpec) -> MenuItems:
+        writable = not self.context.read_only
+        items: list[MenuEntry | None] = []
+        if spec.data_format is AttrDataFormat.SCALAR and spec.writable.writable:
+            items.append(MenuEntry("Write…", self._focus_write, writable))
+        items += [
+            MenuEntry("Configure…", lambda: self._edit_config(spec), writable),
+            MenuEntry("Poll…", lambda: self._edit_polling(spec.name), writable),
+            SEPARATOR,
+            MenuEntry("Copy name", lambda: _copy(f"{self.device}/{spec.name}")),
+        ]
+        return items
+
+    def command_items(self, spec: CommandSpec) -> MenuItems:
+        writable = not self.context.read_only
+        takes_argument = spec.in_type is not TangoType.VOID
+        return [
+            MenuEntry(
+                "Execute…" if takes_argument else "Execute",
+                lambda: self._execute_from_menu(spec),
+                writable,
+            ),
+            MenuEntry("Poll…", lambda: self._edit_polling(spec.name), writable),
+            SEPARATOR,
+            MenuEntry("Copy name", lambda: _copy(spec.name)),
+        ]
+
+    def polling_items(self, entry: PollingEntry) -> MenuItems:
+        writable = not self.context.read_only
+        return [
+            MenuEntry("Change period…", lambda: self._edit_polling(entry.name), writable),
+            MenuEntry("Stop polling", lambda: self._stop_polling(entry), writable),
+        ]
+
+    def _focus_write(self) -> None:
+        self.write_bar.editor.setFocus()
+        self.write_bar.editor.selectAll()
+
+    def _execute_from_menu(self, spec: CommandSpec) -> None:
+        """A command without an argument runs; one with an argument asks for it."""
+        self._select_command(spec)
+        if spec.in_type is TangoType.VOID:
+            self._execute_command(spec.name, None)
+        else:
+            self.command_bar.editor.setFocus()
+
+    def _select_command(self, spec: CommandSpec) -> None:
+        for row in range(self.commands.rowCount()):
+            index = self.commands.index(row, 0)
+            if self.commands.row_at(index) == spec:
+                self.command_view.setCurrentIndex(index)
+                return
+
+    def _table_menu[T](
+        self,
+        view: QAbstractItemView,
+        row_at: Callable[[QModelIndex], T | None],
+        items: Callable[[T], MenuItems],
+        point: QPoint,
+    ) -> None:
+        index = view.indexAt(point)
+        row = row_at(index)
+        if row is None:
+            return
+        view.setCurrentIndex(index)
+        popup(view, point, items(row))
+
     def _commands_tab(self) -> QWidget:
         page = QWidget(self)
         self.command_view = self.make_table(self.commands)
+        _menu_on(
+            self.command_view,
+            lambda point: self._table_menu(
+                self.command_view, self.commands.row_at, self.command_items, point
+            ),
+        )
         selection = self.command_view.selectionModel()
         if selection is not None:
             selection.currentRowChanged.connect(self._command_selected)
@@ -519,6 +619,17 @@ class DevicePanel(Panel):
     def _failed(self, report: ErrorReport) -> None:
         self.banner.show_error(report, str(self.device))
         self.context.journal.report(report, str(self.device))
+
+
+def _menu_on(view: QAbstractItemView, handler: Callable[[QPoint], None]) -> None:
+    view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+    view.customContextMenuRequested.connect(handler)
+
+
+def _copy(text: str) -> None:
+    clipboard = QApplication.clipboard()
+    if clipboard is not None:
+        clipboard.setText(text)
 
 
 def _format_result(result: Any) -> str:

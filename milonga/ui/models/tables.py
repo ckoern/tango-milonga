@@ -32,6 +32,10 @@ class ObjectTableModel[T](QAbstractTableModel):
     def columns(self) -> list[Column[T]]:
         return self._columns
 
+    @property
+    def rows(self) -> tuple[T, ...]:
+        return tuple(self._rows)
+
     def set_rows(self, rows: Sequence[T]) -> None:
         self.beginResetModel()
         self._rows = list(rows)

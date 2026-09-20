@@ -11,7 +11,7 @@ import pyqtgraph as pg
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from milonga.core.model import AttributeSpec, AttributeValue
-from milonga.ui.theme import Tokens
+from milonga.ui.theme import Tokens, set_role, theme_signals
 
 pg.setConfigOptions(imageAxisOrder="row-major", antialias=False)
 
@@ -35,9 +35,9 @@ class _PlotBase(QWidget):
         super().__init__(parent)
         self.tokens = tokens
         self.title = QLabel(self)
-        self.title.setStyleSheet(f"color: {tokens.ink_2}; font-weight: 600;")
+        set_role(self.title, "role", "title")
         self.detail = QLabel(self)
-        self.detail.setStyleSheet(f"color: {tokens.ink_3};")
+        set_role(self.detail, "role", "muted")
         header = QHBoxLayout()
         header.setContentsMargins(0, 0, 0, 0)
         header.addWidget(self.title)
@@ -56,15 +56,22 @@ class _PlotBase(QWidget):
 class SpectrumView(_PlotBase):
     def __init__(self, tokens: Tokens, parent: QWidget | None = None) -> None:
         super().__init__(tokens, parent)
-        self.plot = pg.PlotWidget(background=tokens.panel)
+        self.plot = pg.PlotWidget()
         self.plot.showGrid(x=False, y=True, alpha=0.15)
+        self.curve = self.plot.plot()
+        self._layout.addWidget(self.plot, 1)
+        self._spec: AttributeSpec | None = None
+        self.restyle()
+        theme_signals.changed.connect(self.restyle)
+
+    def restyle(self) -> None:
+        tokens = self.tokens
+        self.plot.setBackground(tokens.panel)
         for axis in ("left", "bottom"):
             item = self.plot.getAxis(axis)
             item.setPen(pg.mkPen(tokens.line_2))
             item.setTextPen(pg.mkPen(tokens.ink_3))
-        self.curve = self.plot.plot(pen=pg.mkPen(tokens.accent, width=1.4))
-        self._layout.addWidget(self.plot, 1)
-        self._spec: AttributeSpec | None = None
+        self.curve.setPen(pg.mkPen(tokens.accent, width=1.4))
 
     def set_attribute(self, spec: AttributeSpec) -> None:
         self._spec = spec
@@ -95,6 +102,8 @@ class ImageView(_PlotBase):
         super().__init__(tokens, parent)
         self.canvas = pg.GraphicsLayoutWidget()
         self.canvas.setBackground(tokens.panel)
+        # a method, not a lambda: Qt drops it when this widget is destroyed
+        theme_signals.changed.connect(self.restyle)
         self.view = self.canvas.addViewBox(lockAspect=True, enableMenu=False)
         self.image = pg.ImageItem()
         self.view.addItem(self.image)
@@ -106,6 +115,9 @@ class ImageView(_PlotBase):
             self.bar.setImageItem(self.image)
             self.canvas.addItem(self.bar, row=0, col=1)
         self._layout.addWidget(self.canvas, 1)
+
+    def restyle(self) -> None:
+        self.canvas.setBackground(self.tokens.panel)
 
     def set_attribute(self, spec: AttributeSpec) -> None:
         self.set_header(spec.name)

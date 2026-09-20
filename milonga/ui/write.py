@@ -1,6 +1,6 @@
 """The one path every database write takes: preview, confirm, apply, journal."""
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import QWidget
@@ -32,17 +32,28 @@ class WriteAction(QObject):
         self._runner = runner
         self._widget = widget
 
-    def execute(self, commands: Sequence[Command], *, confirm_word: str = "") -> None:
+    def execute(
+        self,
+        commands: Sequence[Command],
+        *,
+        confirm_word: str = "",
+        then: Callable[[], None] | None = None,
+    ) -> None:
+        """``then`` runs after the commands are applied, not if they are cancelled."""
         if self._context.read_only or not commands:
             return
         self._runner.run(
             self._context.commands.preview(commands),
-            on_result=lambda diff: self._confirm(commands, diff, confirm_word),
+            on_result=lambda diff: self._confirm(commands, diff, confirm_word, then),
             on_error=self.failed.emit,
         )
 
     def _confirm(
-        self, commands: Sequence[Command], diff: Diff, confirm_word: str
+        self,
+        commands: Sequence[Command],
+        diff: Diff,
+        confirm_word: str,
+        then: Callable[[], None] | None = None,
     ) -> None:
         if not diff:
             self.nothingToDo.emit()
@@ -54,7 +65,7 @@ class WriteAction(QObject):
             return
         self._runner.run(
             self._context.commands.run(commands),
-            on_result=lambda applied: self._applied(commands, applied),
+            on_result=lambda applied: self._applied(commands, applied, then),
             on_error=self.failed.emit,
         )
 
@@ -72,7 +83,11 @@ class WriteAction(QObject):
         )
         return bool(dialog.exec())
 
-    def _applied(self, commands: Sequence[Command], diff: Diff) -> None:
+    def _applied(
+        self, commands: Sequence[Command], diff: Diff, then: Callable[[], None] | None
+    ) -> None:
         for command in commands:
             self._context.journal.write(command.summary, diff.text(), command)
         self.done.emit()
+        if then is not None:
+            then()

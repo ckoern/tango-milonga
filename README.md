@@ -77,6 +77,12 @@ milonga --theme light --scope hosts sys/tg_test/1
 
 Keys: `Ctrl+1` system overview, `Ctrl+K` search, `Ctrl+N` create, `F5` refresh.
 
+The navigator has a tab per scope, each keeping its own tree. Right-click
+anywhere that acts — a server, a startup level, an attribute, a command, a
+property, a host card, a journal entry — for the same actions the buttons
+offer. Switching theme happens in place: the window, its tabs and any unsaved
+edit stay as they are.
+
 The device panel is live: scalar values arrive by Tango events while the panel
 is on screen and stop when it is hidden. A spectrum or image is watched only
 while it is the selected attribute. Writing an attribute and running a command
@@ -101,8 +107,8 @@ with a preview and an undo.
 python3 -m venv .venv
 .venv/bin/pip install -e '.[dev,gui,tango]'
 
-.venv/bin/pytest                    # 306 tests, no control system needed
-.venv/bin/pytest --integration      # plus 27 against the control system in TANGO_HOST
+.venv/bin/pytest                    # 345 tests, no control system needed
+.venv/bin/pytest --integration      # plus 28 against the control system in TANGO_HOST
 .venv/bin/mypy milonga tests
 .venv/bin/ruff check .
 ```

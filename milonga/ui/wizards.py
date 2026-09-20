@@ -4,6 +4,7 @@ from collections.abc import Sequence
 
 from PyQt6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -23,7 +24,7 @@ from PyQt6.QtWidgets import (
 from milonga.core.enums import PollableKind
 from milonga.core.model import DeviceRegistration
 from milonga.core.names import DeviceName, ServerName, TangoNameError, starter_device
-from milonga.ui.theme import Tokens, mono_font
+from milonga.ui.theme import Tokens, mono_font, set_role
 
 STARTER_CLASS = "Starter"
 
@@ -36,7 +37,7 @@ class _ValidatedDialog(QDialog):
         self.setWindowTitle(title)
         self._tokens = tokens
         self.message = QLabel(self)
-        self.message.setStyleSheet(f"color: {tokens.bad};")
+        set_role(self.message, "role", "error")
         self.message.setWordWrap(True)
         self.buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Ok,
@@ -76,6 +77,14 @@ class NewServerDialog(_ValidatedDialog):
         self.level.setRange(0, 20)
         self.level.setValue(1)
         self.level.setSpecialValueText("not controlled")
+        self.start_now = QCheckBox("Start it on this host now", self)
+        self.start_now.setChecked(True)
+        self.start_now.setToolTip(
+            "A Starter controls the servers that have run on its host; "
+            "starting it here puts it under that Starter"
+        )
+        self.host.currentTextChanged.connect(self._host_changed)
+        self._host_changed(self.host.currentText())
 
         self.devices = QTableWidget(0, 2, self)
         self.devices.setHorizontalHeaderLabels(["Device", "Class"])
@@ -104,6 +113,7 @@ class NewServerDialog(_ValidatedDialog):
         form.addRow("Instance", self.instance)
         form.addRow("Host", self.host)
         form.addRow("Startup level", self.level)
+        form.addRow("", self.start_now)
 
         layout = QVBoxLayout(self)
         layout.addLayout(form)
@@ -112,6 +122,12 @@ class NewServerDialog(_ValidatedDialog):
         layout.addLayout(buttons)
         layout.addWidget(self.message)
         layout.addWidget(self.buttons)
+
+    def _host_changed(self, text: str) -> None:
+        self.start_now.setEnabled(bool(text.strip()))
+
+    def start_after(self) -> bool:
+        return self.start_now.isEnabled() and self.start_now.isChecked()
 
     def add_row(self) -> None:
         row = self.devices.rowCount()
@@ -177,9 +193,18 @@ class AddDeviceDialog(_ValidatedDialog):
         classes: Sequence[str],
         tokens: Tokens,
         parent: QWidget | None = None,
+        *,
+        running: bool = False,
     ) -> None:
         super().__init__(f"Add a device to {server}", tokens, parent)
         self._server = server
+        self._running = running
+        self.reload = QCheckBox(f"Reload {server} so it creates the device", self)
+        self.reload.setChecked(running)
+        self.reload.setVisible(running)
+        self.reload.setToolTip(
+            "A running server creates only the devices it read when it started"
+        )
         self.name = QLineEdit(self)
         self.name.setFont(mono_font())
         self.name.setPlaceholderText("domain/family/member")
@@ -190,11 +215,15 @@ class AddDeviceDialog(_ValidatedDialog):
         form = QFormLayout()
         form.addRow("Device", self.name)
         form.addRow("Class", self.class_name)
+        form.addRow("", self.reload)
 
         layout = QVBoxLayout(self)
         layout.addLayout(form)
         layout.addWidget(self.message)
         layout.addWidget(self.buttons)
+
+    def reload_after(self) -> bool:
+        return self._running and self.reload.isChecked()
 
     def registration(self) -> DeviceRegistration:
         return DeviceRegistration(
@@ -223,7 +252,7 @@ class AddHostDialog(_ValidatedDialog):
         self.host.setPlaceholderText("hostname")
         self.preview = QLabel(self)
         self.preview.setFont(mono_font())
-        self.preview.setStyleSheet(f"color: {tokens.ink_3};")
+        set_role(self.preview, "role", "muted")
         self.host.textChanged.connect(self._update_preview)
 
         form = QFormLayout()

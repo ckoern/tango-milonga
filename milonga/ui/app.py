@@ -22,7 +22,7 @@ from milonga.core.services.control import StarterControl
 from milonga.core.services.groups import load_host_groups
 from milonga.core.services.inventory import Inventory
 from milonga.core.store import SystemStore
-from milonga.ui.context import AppContext, Journal, Target
+from milonga.ui.context import AppContext, Journal
 from milonga.ui.mainwindow import MainWindow
 from milonga.ui.navigator import Scope
 from milonga.ui.search import parse_target
@@ -97,7 +97,7 @@ async def build_context(options: AppOptions) -> AppContext:
 
 
 class Shell:
-    """Owns the window, so switching theme can rebuild it with the open tabs."""
+    """Owns the window and the application-wide theme."""
 
     def __init__(self, app: QApplication, context: AppContext, options: AppOptions) -> None:
         self._app = app
@@ -110,32 +110,22 @@ class Shell:
         return self._window
 
     def start(self) -> MainWindow:
-        window = self._create(self._options.theme)
+        tokens = apply_theme(self._app, self._options.theme)
+        window = MainWindow(self._context, tokens, self._options.theme)
+        window.themeToggled.connect(self.switch_theme)
         window.navigator.set_scope(self._options.scope)
         targets = [target for text in self._options.open if (target := parse_target(text))]
         window.open_targets(targets)
-        return window
-
-    def _create(self, theme: Theme, restore: Sequence[Target] = ()) -> MainWindow:
-        tokens = apply_theme(self._app, theme)
-        window = MainWindow(self._context, tokens, theme)
-        window.themeToggled.connect(self._switch_theme)
-        window.open_targets(restore)
         window.show()
         self._window = window
         return window
 
-    def _switch_theme(self, theme: Theme) -> None:
-        previous = self._window
-        if previous is None:
-            return
-        scope = previous.navigator.scope
-        restore = previous.open_panels
+    def switch_theme(self, theme: Theme) -> None:
+        """In place: the window, its tabs and any unsaved edit stay where they are."""
+        apply_theme(self._app, theme)
         self._options.theme = theme
-        window = self._create(theme, restore)
-        previous.close()
-        previous.deleteLater()
-        window.navigator.set_scope(scope)
+        if self._window is not None:
+            self._window.theme = theme
 
 
 async def shutdown(context: AppContext) -> None:

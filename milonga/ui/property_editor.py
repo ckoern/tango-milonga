@@ -7,7 +7,7 @@ wrote lands in the journal with an undo.
 
 from collections.abc import Sequence
 
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import QPoint, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
@@ -29,7 +29,8 @@ from milonga.core.enums import PropertyScope
 from milonga.core.model import PropertyEntry, PropertyHistoryEntry
 from milonga.ui.context import AppContext
 from milonga.ui.dialogs import CopyToDialog, HistoryDialog, NameDialog, ValuesDialog
-from milonga.ui.models.properties import PropertyEditorModel, PropertyRow
+from milonga.ui.menus import SEPARATOR, MenuEntry, MenuItems, popup
+from milonga.ui.models.properties import PropertyEditorModel, PropertyRow, RowState
 from milonga.ui.tasks import TaskRunner
 from milonga.ui.theme import Tokens
 from milonga.ui.write import WriteAction
@@ -70,6 +71,8 @@ class PropertyEditor(QWidget):
         self.view.setShowGrid(False)
         self.view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.view.doubleClicked.connect(lambda _index: self._edit_values())
+        self.view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.view.customContextMenuRequested.connect(self._context_menu)
         vertical = self.view.verticalHeader()
         if vertical is not None:
             vertical.setVisible(False)
@@ -141,6 +144,35 @@ class PropertyEditor(QWidget):
     def selected(self) -> PropertyRow | None:
         rows = self.selected_rows()
         return self.model.rows[rows[0]] if rows else None
+
+    # ----------------------------------------------------------------- right click
+
+    def context_items(self, row: PropertyRow | None) -> MenuItems:
+        writable = not self.read_only
+        if row is None:
+            return [MenuEntry("Add…", self._add_property, writable)]
+        items: list[MenuEntry | None] = [
+            MenuEntry("Edit values…", self._edit_values, writable),
+            MenuEntry("Rename…", self._rename, writable),
+            MenuEntry("Delete", self._delete, writable),
+            SEPARATOR,
+            MenuEntry("History", self._history),
+            MenuEntry("Copy to…", self._copy_to, writable),
+        ]
+        if row.state is not RowState.UNCHANGED:
+            position = self.model.row_named(row.name)
+            items += [
+                SEPARATOR,
+                MenuEntry("Undo this edit", lambda: self.model.revert_rows([position])),
+            ]
+        return items
+
+    def _context_menu(self, point: QPoint) -> None:
+        index = self.view.indexAt(point)
+        row = self.model.row_at(index)
+        if row is not None:
+            self.view.selectRow(index.row())
+        popup(self.view, point, self.context_items(row))
 
     # --------------------------------------------------------------------- edits
 

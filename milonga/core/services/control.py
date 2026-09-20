@@ -195,7 +195,7 @@ class StarterControl:
         await self.wait_until(server, running=False, timeout=self._stop_timeout)
         await asyncio.sleep(self._exit_grace)
 
-    async def _reported_line(self, host: str, server: ServerName) -> ServerLine | None:
+    async def reported_line(self, host: str, server: ServerName) -> ServerLine | None:
         """The Starter's own view, for the servers that ran on its host."""
         values = await self._backend.read_attributes(starter_device(host), [SERVERS_ATTRIBUTE])
         for line in parse_server_lines(values[0].value if values else ()):
@@ -204,7 +204,7 @@ class StarterControl:
         return None
 
     async def _reported_state(self, host: str, server: ServerName) -> ServerRunState | None:
-        line = await self._reported_line(host, server)
+        line = await self.reported_line(host, server)
         return line.run_state if line is not None else None
 
     async def wait_for_report(
@@ -233,7 +233,7 @@ class StarterControl:
         self._stopped[server] = time.monotonic()
 
     async def _controls(self, host: str, server: ServerName) -> bool:
-        line = await self._reported_line(host, server)
+        line = await self.reported_line(host, server)
         return line is not None and line.controlled
 
     async def restart_server(self, host: str, server: ServerName) -> None:
@@ -254,6 +254,11 @@ class StarterControl:
                 f"{server} did not register within {self._start_timeout:.0f} s; "
                 "its Starter log may say why"
             )
+
+    async def reload_server(self, server: ServerName) -> None:
+        """A running server creates only the devices it read at startup;
+        ``RestartServer`` makes it read the database again, in the same process."""
+        await self._backend.execute_command(server.admin_device, "RestartServer")
 
     async def is_running(self, server: ServerName) -> bool:
         try:

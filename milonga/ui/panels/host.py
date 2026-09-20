@@ -5,9 +5,8 @@ than alphabetically, and bulk actions walk the levels in order the way the
 Starter itself does.
 """
 
-from collections.abc import Sequence
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QPoint, Qt
 from PyQt6.QtGui import QHideEvent, QShowEvent
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -28,13 +27,15 @@ from milonga.core.model import HostSnapshot, ServerSnapshot
 from milonga.core.names import ServerName
 from milonga.core.services.diagnostics import Diagnostics
 from milonga.ui.context import AppContext, Target
-from milonga.ui.dialogs import ConfirmDialog, LevelDialog
+from milonga.ui.dialogs import LevelDialog
 from milonga.ui.live_hosts import LiveHosts
+from milonga.ui.menus import SEPARATOR, MenuEntry, MenuItems, popup
 from milonga.ui.models.delegate import NodeDelegate
 from milonga.ui.models.tables import ObjectTableModel
 from milonga.ui.models.tree import LazyTreeModel, NodeKind, TreeNode
 from milonga.ui.panels.base import InfoForm, Panel
 from milonga.ui.panels.columns import detail_columns
+from milonga.ui.process import ProcessActions
 from milonga.ui.theme import Tokens, host_state_category, mono_font, run_state_category
 from milonga.ui.widgets import SectionLabel
 from milonga.ui.write import WriteAction
@@ -59,6 +60,9 @@ class HostPanel(Panel):
         self.write = WriteAction(context, tokens, self.runner, self)
         self.write.done.connect(self.refresh)
         self.write.failed.connect(self._failed)
+        self.process = ProcessActions(context, self.runner, self)
+        self.process.done.connect(self.refresh)
+        self.process.failed.connect(self._failed)
 
         self.info = InfoForm(tokens, self)
         self.model = LazyTreeModel(_no_children, self.runner, self)
@@ -68,6 +72,8 @@ class HostPanel(Panel):
         self.view.setUniformRowHeights(True)
         self.view.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.view.setItemDelegate(NodeDelegate(tokens, self.view))
+        self.view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.view.customContextMenuRequested.connect(self._context_menu)
 
         self.log = QPlainTextEdit(self)
         self.log.setReadOnly(True)
@@ -285,83 +291,68 @@ class HostPanel(Panel):
         return tuple(dict.fromkeys(names))
 
     def _start(self) -> None:
-        self._run_on_selection("start", self.context.control.start_server)
-
-    def _restart(self) -> None:
-        self._run_on_selection("restart", self.context.control.restart_server, confirm=True)
+        self.process.start(self.host, self.selected_servers())
 
     def _stop(self) -> None:
-        self._run_on_selection("stop", self.context.control.stop_server, confirm=True)
+        self.process.stop(self.host, self.selected_servers())
+
+    def _restart(self) -> None:
+        self.process.restart(self.host, self.selected_servers())
 
     def _hard_kill(self) -> None:
-        self._run_on_selection(
-            "hard kill", self.context.control.hard_kill_server, confirm=True, typed=True
-        )
-
-    def _run_on_selection(
-        self,
-        action: str,
-        operation: object,
-        *,
-        confirm: bool = False,
-        typed: bool = False,
-    ) -> None:
-        servers = self.selected_servers()
-        if not servers or self.context.read_only:
-            return
-        if confirm and not self._confirm(action, servers, typed=typed):
-            return
-        self.runner.run(
-            self._apply(action, operation, servers),
-            on_result=lambda _: self.refresh(),
-            on_error=self._failed,
-        )
-
-    async def _apply(
-        self, action: str, operation: object, servers: Sequence[ServerName]
-    ) -> None:
-        for server in servers:
-            await operation(self.host, server)  # type: ignore[operator]
-            self.context.journal.write(f"{action} {server} on {self.host}")
-
-    def _confirm(
-        self, action: str, servers: Sequence[ServerName], *, typed: bool
-    ) -> bool:
-        names = "\n".join(str(server) for server in servers)
-        dialog = ConfirmDialog(
-            f"Confirm {action}",
-            f"This acts on running processes on {self.host}:\n\n{names}",
-            confirm_word=self.host if typed else None,
-            parent=self,
-        )
-        return bool(dialog.exec())
+        self.process.hard_kill(self.host, self.selected_servers())
 
     def _start_all(self) -> None:
-        snapshot = self.snapshot
-        if snapshot is None or self.context.read_only:
-            return
-        self.runner.run(
-            self.context.control.start_all(snapshot),
-            on_result=lambda _: self._all_done("start all levels"),
-            on_error=self._failed,
-        )
+        if self.snapshot is not None:
+            self.process.start_all(self.snapshot)
 
     def _stop_all(self) -> None:
-        snapshot = self.snapshot
-        if snapshot is None or self.context.read_only:
-            return
-        names = [server.name for server in snapshot.servers]
-        if not self._confirm("stop all levels", names, typed=True):
-            return
-        self.runner.run(
-            self.context.control.stop_all(snapshot),
-            on_result=lambda _: self._all_done("stop all levels"),
-            on_error=self._failed,
-        )
+        if self.snapshot is not None:
+            self.process.stop_all(self.snapshot)
 
-    def _all_done(self, action: str) -> None:
-        self.context.journal.write(f"{action} on {self.host}")
-        self.refresh()
+    # ----------------------------------------------------------------- right click
+
+    def context_items(self, node: TreeNode | None) -> MenuItems:
+        writable = self.process.enabled
+        if node is None:
+            return [
+                MenuEntry("Start all levels", self._start_all, writable),
+                MenuEntry("Stop all levels", self._stop_all, writable),
+            ]
+        if node.kind is NodeKind.GROUP:
+            level = int(node.payload)
+            if not level:
+                return []
+            return [
+                MenuEntry(
+                    f"Start level {level}",
+                    lambda: self.process.start_level(self.host, level),
+                    writable,
+                ),
+                MenuEntry(
+                    f"Stop level {level}",
+                    lambda: self.process.stop_level(self.host, level),
+                    writable,
+                ),
+            ]
+        server = node.payload
+        return [
+            MenuEntry("Start", self._start, writable),
+            MenuEntry("Stop", self._stop, writable),
+            MenuEntry("Restart", self._restart, writable),
+            MenuEntry("Hard kill", self._hard_kill, writable),
+            SEPARATOR,
+            MenuEntry("Read log", self._read_log),
+            MenuEntry("Startup level…", self._edit_level, writable),
+            SEPARATOR,
+            MenuEntry(
+                "Open server panel", lambda: self.context.open_target(Target.server(server))
+            ),
+        ]
+
+    def _context_menu(self, point: QPoint) -> None:
+        index = self.view.indexAt(point)
+        popup(self.view, point, self.context_items(self.model.node(index)))
 
     def _read_log(self) -> None:
         servers = self.selected_servers()

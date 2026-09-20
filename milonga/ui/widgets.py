@@ -16,7 +16,7 @@ from milonga.core.enums import StateCategory, TangoType
 from milonga.core.errors import ErrorReport
 from milonga.core.model import AttributeSpec, CommandSpec
 from milonga.ui.format import parse_command_argument, parse_write_value
-from milonga.ui.theme import Tokens, category_background, category_color, mono_font
+from milonga.ui.theme import Tokens, chip_name, mono_font, set_role
 
 
 class StateChip(QLabel):
@@ -24,26 +24,22 @@ class StateChip(QLabel):
 
     def __init__(self, tokens: Tokens, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self._tokens = tokens
+        self.setObjectName("stateChip")
         self.setFont(mono_font())
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.category = StateCategory.UNKNOWN
         self.set_state("UNKNOWN", StateCategory.UNKNOWN)
 
     def set_state(self, text: str, category: StateCategory) -> None:
         self.setText(text)
-        self.setStyleSheet(
-            f"background: {category_background(self._tokens, category).name()};"
-            f"color: {category_color(self._tokens, category).name()};"
-            "border-radius: 9px; padding: 2px 10px; font-weight: 600;"
-        )
+        self.category = category
+        set_role(self, "chip", chip_name(category))
 
 
 class SectionLabel(QLabel):
     def __init__(self, text: str, tokens: Tokens, parent: QWidget | None = None) -> None:
         super().__init__(text.upper(), parent)
-        self.setStyleSheet(
-            f"color: {tokens.ink_3}; font-weight: 600; letter-spacing: 1px; font-size: 8pt;"
-        )
+        set_role(self, "role", "section")
 
 
 class ErrorBanner(QFrame):
@@ -51,7 +47,7 @@ class ErrorBanner(QFrame):
 
     def __init__(self, tokens: Tokens, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self._tokens = tokens
+        self.setObjectName("errorBanner")
         self.setVisible(False)
         self.setFrameShape(QFrame.Shape.NoFrame)
         self._summary = QLabel(self)
@@ -64,10 +60,6 @@ class ErrorBanner(QFrame):
         layout.setSpacing(2)
         layout.addWidget(self._summary)
         layout.addWidget(self._detail)
-        self.setStyleSheet(
-            f"QFrame {{ background: {tokens.bad_soft}; border-left: 3px solid {tokens.bad}; }}"
-            f"QLabel {{ background: transparent; color: {tokens.bad}; }}"
-        )
 
     def show_error(self, report: ErrorReport, context: str = "") -> None:
         self._summary.setText(f"{context}: {report.message}" if context else report.message)
@@ -94,7 +86,7 @@ class HeaderBar(QWidget):
         self.name.setFont(font)
         self.chip = StateChip(tokens, self)
         self.context = QLabel(self)
-        self.context.setStyleSheet(f"color: {tokens.ink_3};")
+        set_role(self.context, "role", "muted")
         self.context.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
         layout = QHBoxLayout(self)
@@ -123,7 +115,7 @@ class WriteBar(QWidget):
         self._spec: AttributeSpec | None = None
 
         self.caption = QLabel("Set point", self)
-        self.caption.setStyleSheet(f"color: {tokens.ink_3};")
+        set_role(self.caption, "role", "muted")
         self.name = QLabel("—", self)
         self.name.setFont(mono_font())
         self.editor = QLineEdit(self)
@@ -132,7 +124,7 @@ class WriteBar(QWidget):
         self.button = QPushButton("Write", self)
         self.button.clicked.connect(self._submit)
         self.message = QLabel(self)
-        self.message.setStyleSheet(f"color: {tokens.bad};")
+        set_role(self.message, "role", "error")
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -162,8 +154,7 @@ class WriteBar(QWidget):
             self.editor.setPlaceholderText(f"{spec.data_type.value}")
 
     def show_message(self, text: str, *, error: bool = True) -> None:
-        colour = self._tokens.bad if error else self._tokens.ok
-        self.message.setStyleSheet(f"color: {colour};")
+        set_role(self.message, "role", "error" if error else "success")
         self.message.setText(text)
 
     def _submit(self) -> None:
@@ -192,7 +183,7 @@ class CommandBar(QWidget):
         self._spec: CommandSpec | None = None
 
         self.caption = QLabel("Command", self)
-        self.caption.setStyleSheet(f"color: {tokens.ink_3};")
+        set_role(self.caption, "role", "muted")
         self.name = QLabel("—", self)
         self.name.setFont(mono_font())
         self.editor = QLineEdit(self)
@@ -233,8 +224,7 @@ class CommandBar(QWidget):
             self.editor.setPlaceholderText("takes no argument")
 
     def show_result(self, text: str, *, error: bool = False) -> None:
-        colour = self._tokens.bad if error else self._tokens.ink_2
-        self.result.setStyleSheet(f"color: {colour};")
+        set_role(self.result, "role", "error" if error else "")
         self.result.setText(text)
 
     def _submit(self) -> None:

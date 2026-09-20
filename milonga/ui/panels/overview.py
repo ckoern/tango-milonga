@@ -6,8 +6,8 @@ server, so a mixed host is visible before reading a single number.
 
 from collections.abc import Sequence
 
-from PyQt6.QtCore import QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QHideEvent, QMouseEvent, QPainter, QShowEvent
+from PyQt6.QtCore import QPoint, QSize, Qt, pyqtSignal
+from PyQt6.QtGui import QContextMenuEvent, QHideEvent, QMouseEvent, QPainter, QShowEvent
 from PyQt6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -25,13 +25,16 @@ from milonga.core.errors import ErrorReport
 from milonga.core.model import HostSnapshot
 from milonga.ui.context import AppContext, Target
 from milonga.ui.live_hosts import LiveHosts
+from milonga.ui.menus import SEPARATOR, MenuEntry, MenuItems, popup
 from milonga.ui.panels.base import Panel
+from milonga.ui.process import ProcessActions
 from milonga.ui.theme import (
     Tokens,
     category_color,
     host_state_category,
     mono_font,
     run_state_category,
+    set_role,
 )
 from milonga.ui.widgets import StateChip
 
@@ -82,25 +85,25 @@ class ServerStrip(QWidget):
 
 class HostCard(QFrame):
     activated = pyqtSignal(str)
+    menuRequested = pyqtSignal(str, QPoint)
 
     def __init__(self, tokens: Tokens, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._tokens = tokens
         self._host = ""
         self.setObjectName("hostCard")
-        self._apply_border(tokens.line)
         self.name = QLabel(self)
         font = mono_font()
         font.setBold(True)
         self.name.setFont(font)
         self.chip = StateChip(tokens, self)
         self.group = QLabel(self)
-        self.group.setStyleSheet(f"color: {tokens.ink_3};")
+        set_role(self.group, "role", "muted")
         self.strip = ServerStrip(tokens, self)
         self.counts = QLabel(self)
-        self.counts.setStyleSheet(f"color: {tokens.ink_3};")
+        set_role(self.counts, "role", "muted")
         self.levels = QLabel(self)
-        self.levels.setStyleSheet(f"color: {tokens.ink_3};")
+        set_role(self.levels, "role", "muted")
 
         # real host names run long; the name gets its own line, the chip the next
         self.name.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
@@ -122,14 +125,6 @@ class HostCard(QFrame):
         layout.addLayout(head)
         layout.addWidget(self.strip)
         layout.addLayout(footer)
-
-    def _apply_border(self, colour: str) -> None:
-        # labels inherit the window ground otherwise, banding the card
-        self.setStyleSheet(
-            f"#hostCard {{ background: {self._tokens.panel}; border: 1px solid {colour};"
-            " border-radius: 7px; }"
-            "#hostCard QLabel { background: transparent; }"
-        )
 
     @property
     def host(self) -> str:
@@ -154,11 +149,11 @@ class HostCard(QFrame):
             self.levels.setText(levels_text(snapshot.levels))
             if snapshot.state is HostState.IDLE:
                 self.counts.setText("nothing to control")
-        self._apply_border(
-            self._tokens.bad
-            if snapshot.state is HostState.UNREACHABLE
-            else self._tokens.line
-        )
+        set_role(self, "alert", "true" if snapshot.state is HostState.UNREACHABLE else "false")
+
+    def contextMenuEvent(self, a0: QContextMenuEvent | None) -> None:
+        if a0 is not None and self._host:
+            self.menuRequested.emit(self._host, a0.pos())
 
     def mouseDoubleClickEvent(self, a0: QMouseEvent | None) -> None:
         super().mouseDoubleClickEvent(a0)
@@ -177,6 +172,8 @@ class OverviewPanel(Panel):
         super().__init__(context, tokens, target, parent)
         self.live = LiveHosts(context, self)
         self.live.changed.connect(self._host_changed)
+        self.process = ProcessActions(context, self.runner, self)
+        self.process.failed.connect(self._failed)
         self._cards: dict[str, HostCard] = {}
         self._columns = 0
 
@@ -224,9 +221,7 @@ class OverviewPanel(Panel):
 
     def refresh(self) -> None:
         self.banner.clear()
-        self.runner.run(
-            self._load(), on_result=lambda _: self._rebuild(), on_error=self._failed
-        )
+        self.runner.run(self._load(), on_result=lambda _: self._rebuild(), on_error=self._failed)
 
     async def _load(self) -> None:
         await self.live.watch(await self.context.control.controlled_hosts())
@@ -244,6 +239,9 @@ class OverviewPanel(Panel):
         if card is None:
             card = HostCard(self.tokens, self.canvas)
             card.activated.connect(self._open_host)
+            card.menuRequested.connect(
+                lambda host, point, card=card: popup(card, point, self.card_items(host))
+            )
             card.setFixedWidth(CARD_WIDTH)
             self._cards[host] = card
         return card
@@ -282,9 +280,7 @@ class OverviewPanel(Panel):
         snapshots = self.live.snapshots()
         running = sum(snapshot.running_count for snapshot in snapshots)
         stopped = sum(snapshot.stopped_count for snapshot in snapshots)
-        unreachable = sum(
-            1 for snapshot in snapshots if snapshot.state is HostState.UNREACHABLE
-        )
+        unreachable = sum(1 for snapshot in snapshots if snapshot.state is HostState.UNREACHABLE)
         parts = [
             f"{len(snapshots)} host" + ("" if len(snapshots) == 1 else "s"),
             f"{running} servers running",
@@ -293,6 +289,20 @@ class OverviewPanel(Panel):
         if unreachable:
             parts.append(f"{unreachable} Starter unreachable")
         self.summary.setText("   ·   ".join(parts))
+
+    def card_items(self, host: str) -> MenuItems:
+        snapshot = self.live.snapshot(host)
+        writable = self.process.enabled and snapshot is not None and snapshot.error is None
+        items: list[MenuEntry | None] = [
+            MenuEntry("Open host panel", lambda: self._open_host(host)),
+        ]
+        if snapshot is not None:
+            items += [
+                SEPARATOR,
+                MenuEntry("Start all levels", lambda: self.process.start_all(snapshot), writable),
+                MenuEntry("Stop all levels", lambda: self.process.stop_all(snapshot), writable),
+            ]
+        return items
 
     def _open_host(self, host: str) -> None:
         self.context.open_target(Target.host(host))

@@ -1,13 +1,16 @@
 """The navigator: Jive's five trees and Astor's host tree as one widget."""
 
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from enum import StrEnum
 
 from PyQt6.QtCore import QModelIndex, QPoint, QSortFilterProxyModel, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
-    QComboBox,
+    QButtonGroup,
+    QGridLayout,
     QLineEdit,
-    QMenu,
+    QSizePolicy,
+    QStackedWidget,
+    QToolButton,
     QTreeView,
     QVBoxLayout,
     QWidget,
@@ -28,8 +31,10 @@ from milonga.core.names import DeviceName, ServerName
 from milonga.core.tasks import gather_limited
 from milonga.ui.context import AppContext, Target
 from milonga.ui.dialogs import NameDialog
+from milonga.ui.menus import SEPARATOR, MenuEntry, MenuItems, popup
 from milonga.ui.models.delegate import NodeDelegate
 from milonga.ui.models.tree import LazyTreeModel, NodeKind, TreeNode
+from milonga.ui.process import ProcessActions
 from milonga.ui.tasks import TaskRunner
 from milonga.ui.theme import Tokens, host_state_category, run_state_category
 from milonga.ui.wizards import AddDeviceDialog, AddHostDialog, NewServerDialog
@@ -45,12 +50,22 @@ class Scope(StrEnum):
     PROPERTIES = "Free properties"
 
 
+TAB_LABELS: dict[Scope, str] = {
+    Scope.HOSTS: "Hosts",
+    Scope.SERVERS: "Servers",
+    Scope.DEVICES: "Devices",
+    Scope.CLASSES: "Classes",
+    Scope.ALIASES: "Aliases",
+    Scope.PROPERTIES: "Objects",
+}
+
+
 class ScopeLoader:
     """Builds tree nodes for a scope, one level at a time."""
 
-    def __init__(self, context: AppContext) -> None:
+    def __init__(self, context: AppContext, scope: Scope = Scope.DEVICES) -> None:
         self._context = context
-        self.scope = Scope.DEVICES
+        self.scope = scope
 
     async def roots(self) -> list[TreeNode]:
         backend = self._context.backend
@@ -197,10 +212,11 @@ class ScopeLoader:
         )
 
 
-def _action(menu: QMenu, text: str, slot: Callable[[], None], enabled: bool) -> None:
-    action = menu.addAction(text, slot)
-    if action is not None:
-        action.setEnabled(enabled)
+def _host_of(node: TreeNode) -> str | None:
+    parent = node.parent
+    if parent is not None and isinstance(parent.payload, HostSnapshot):
+        return parent.payload.name
+    return None
 
 
 def _preview(values: Sequence[str]) -> str:
@@ -226,32 +242,75 @@ def target_of(node: TreeNode) -> Target | None:
             return None
 
 
-class Navigator(QWidget):
-    targetActivated = pyqtSignal(object)
-    nodeSelected = pyqtSignal(object)
+class ScopeSelector(QWidget):
+    """The scopes as tabs that wrap.
 
-    def __init__(self, context: AppContext, tokens: Tokens, parent: QWidget | None = None) -> None:
+    Six labels in a row need about 440 pixels; the navigator is narrower than
+    that, and a scrolling tab bar would cost the click the tabs save.
+    """
+
+    currentChanged = pyqtSignal(int)
+    COLUMNS = 3
+
+    def __init__(self, labels: Sequence[str], parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self._context = context
-        self._tokens = tokens
-        self._loader = ScopeLoader(context)
-        self._runner = TaskRunner(self, context.journal, context="navigator")
+        self._group = QButtonGroup(self)
+        self._group.setExclusive(True)
+        self._buttons: list[QToolButton] = []
+        grid = QGridLayout(self)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setSpacing(0)
+        for position, label in enumerate(labels):
+            button = QToolButton(self)
+            button.setText(label)
+            button.setCheckable(True)
+            button.setProperty("scopeTab", "true")
+            button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            self._group.addButton(button, position)
+            self._buttons.append(button)
+            grid.addWidget(button, position // self.COLUMNS, position % self.COLUMNS)
+        for column in range(self.COLUMNS):
+            grid.setColumnStretch(column, 1)
+        self._group.idClicked.connect(self._clicked)
 
-        self.scope_box = QComboBox(self)
-        self.scope_box.addItems([scope.value for scope in Scope])
-        self.scope_box.setCurrentText(Scope.DEVICES.value)
-        self.scope_box.currentTextChanged.connect(self._scope_changed)
+    def setTabToolTip(self, index: int, text: str) -> None:
+        self._buttons[index].setToolTip(text)
 
-        self.filter_box = QLineEdit(self)
-        self.filter_box.setPlaceholderText("Filter loaded nodes…")
-        self.filter_box.setClearButtonEnabled(True)
+    def currentIndex(self) -> int:
+        return int(self._group.checkedId())
 
-        self.model = LazyTreeModel(self._loader.children, self._runner, self)
+    def setCurrentIndex(self, index: int) -> None:
+        if index == self.currentIndex() or not 0 <= index < len(self._buttons):
+            return
+        self._buttons[index].setChecked(True)
+        self.currentChanged.emit(index)
+
+    def _clicked(self, index: int) -> None:
+        self.currentChanged.emit(index)
+
+
+class ScopePage(QWidget):
+    """One scope's tree, kept while other tabs are shown."""
+
+    def __init__(
+        self,
+        context: AppContext,
+        tokens: Tokens,
+        scope: Scope,
+        runner: TaskRunner,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.scope = scope
+        self.loader = ScopeLoader(context, scope)
+        self.loaded = False
+        self._runner = runner
+
+        self.model = LazyTreeModel(self.loader.children, runner, self)
         self.proxy = QSortFilterProxyModel(self)
         self.proxy.setSourceModel(self.model)
         self.proxy.setRecursiveFilteringEnabled(True)
         self.proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        self.filter_box.textChanged.connect(self.proxy.setFilterFixedString)
 
         self.view = QTreeView(self)
         self.view.setModel(self.proxy)
@@ -259,48 +318,129 @@ class Navigator(QWidget):
         self.view.setItemDelegate(NodeDelegate(tokens, self.view))
         self.view.setUniformRowHeights(True)
         self.view.setExpandsOnDoubleClick(False)
-        self.view.doubleClicked.connect(self._activated)
-        selection = self.view.selectionModel()
-        if selection is not None:
-            selection.currentChanged.connect(self._current_changed)
-
         self.view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.view.customContextMenuRequested.connect(self._context_menu)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.view)
+
+    def refresh(self) -> None:
+        self.loaded = True
+        self._runner.run(
+            self.loader.roots(),
+            on_result=self.model.set_roots,
+            label=f"load {self.scope.value.lower()}",
+        )
+
+    def node_at(self, index: QModelIndex) -> TreeNode | None:
+        return self.model.node(self.proxy.mapToSource(index))
+
+
+class Navigator(QWidget):
+    """One tab per scope, each with its own tree, loaded the first time it shows."""
+
+    targetActivated = pyqtSignal(object)
+    nodeSelected = pyqtSignal(object)
+
+    def __init__(self, context: AppContext, tokens: Tokens, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._context = context
+        self._tokens = tokens
+        self._runner = TaskRunner(self, context.journal, context="navigator")
+
+        self.filter_box = QLineEdit(self)
+        self.filter_box.setPlaceholderText("Filter loaded nodes…")
+        self.filter_box.setClearButtonEnabled(True)
+        self.filter_box.textChanged.connect(self._apply_filter)
+
+        self.tab_bar = ScopeSelector([TAB_LABELS[scope] for scope in Scope], self)
+        self.stack = QStackedWidget(self)
+        self.pages: dict[Scope, ScopePage] = {}
+        for scope in Scope:
+            page = ScopePage(context, tokens, scope, self._runner, self.stack)
+            page.view.doubleClicked.connect(self._activated)
+            page.view.customContextMenuRequested.connect(self._context_menu)
+            selection = page.view.selectionModel()
+            if selection is not None:
+                selection.currentChanged.connect(self._current_changed)
+            self.pages[scope] = page
+            self.stack.addWidget(page)
+            self.tab_bar.setTabToolTip(list(Scope).index(scope), scope.value)
+        self._select(Scope.DEVICES)
+        self.tab_bar.currentChanged.connect(self._tab_changed)
+
         self.write = WriteAction(context, tokens, self._runner, self)
-        self.write.done.connect(self.refresh)
+        self.write.done.connect(self.refresh_all)
+        self.process = ProcessActions(context, self._runner, self)
+        self.process.done.connect(self.refresh)
+        self.process.failed.connect(lambda report: context.journal.report(report, "navigator"))
         self.write.failed.connect(lambda report: context.journal.report(report, "navigator"))
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
         layout.setSpacing(6)
-        layout.addWidget(self.scope_box)
+        layout.addWidget(self.tab_bar)
         layout.addWidget(self.filter_box)
-        layout.addWidget(self.view, 1)
+        layout.addWidget(self.stack, 1)
+
+    @property
+    def page(self) -> ScopePage:
+        widget = self.stack.currentWidget()
+        assert isinstance(widget, ScopePage)
+        return widget
 
     @property
     def scope(self) -> Scope:
-        return self._loader.scope
+        return self.page.scope
+
+    @property
+    def model(self) -> LazyTreeModel:
+        return self.page.model
+
+    @property
+    def proxy(self) -> QSortFilterProxyModel:
+        return self.page.proxy
+
+    @property
+    def view(self) -> QTreeView:
+        return self.page.view
 
     def set_scope(self, scope: Scope) -> None:
-        self.scope_box.setCurrentText(scope.value)
+        self.tab_bar.setCurrentIndex(list(Scope).index(scope))
+        self._ensure_loaded()
+
+    def _select(self, scope: Scope) -> None:
+        self.tab_bar.setCurrentIndex(list(Scope).index(scope))
+        self.stack.setCurrentWidget(self.pages[scope])
 
     def refresh(self) -> None:
-        self._runner.run(
-            self._loader.roots(),
-            on_result=self.model.set_roots,
-            label=f"load {self._loader.scope.value.lower()}",
-        )
+        """Reload the tab in view."""
+        self.page.refresh()
+
+    def refresh_all(self) -> None:
+        """After a write every scope may be out of date; the others reload when shown."""
+        for page in self.pages.values():
+            page.loaded = False
+        self.refresh()
 
     async def idle(self) -> None:
         await self._runner.idle()
 
     def node_at(self, index: QModelIndex) -> TreeNode | None:
-        return self.model.node(self.proxy.mapToSource(index))
+        return self.page.node_at(index)
 
-    def _scope_changed(self, text: str) -> None:
-        self._loader.scope = Scope(text)
-        self.model.set_roots([])
-        self.refresh()
+    def _ensure_loaded(self) -> None:
+        if not self.page.loaded:
+            self.page.refresh()
+
+    def _tab_changed(self, index: int) -> None:
+        self.stack.setCurrentWidget(self.pages[list(Scope)[index]])
+        self._apply_filter(self.filter_box.text())
+        self._ensure_loaded()
+        self.nodeSelected.emit(self.node_at(self.view.currentIndex()))
+
+    def _apply_filter(self, text: str) -> None:
+        self.page.proxy.setFilterFixedString(text)
 
     def _current_changed(self, current: QModelIndex, _previous: QModelIndex) -> None:
         self.nodeSelected.emit(self.node_at(current))
@@ -315,40 +455,63 @@ class Navigator(QWidget):
             self.new_server()
 
     def _context_menu(self, point: QPoint) -> None:
-        node = self.node_at(self.view.indexAt(point))
-        menu = QMenu(self)
-        writable = not self._context.read_only
-        if self.scope is Scope.HOSTS:
-            _action(menu, "Add controlled host…", self.add_host, writable)
-        else:
-            _action(menu, "New server…", self.new_server, writable)
-        if node is not None:
-            self._node_actions(menu, node, writable)
-        viewport = self.view.viewport()
-        if viewport is not None:
-            menu.exec(viewport.mapToGlobal(point))
+        popup(self.view, point, self.context_items(self.node_at(self.view.indexAt(point))))
 
-    def _node_actions(self, menu: QMenu, node: TreeNode, writable: bool) -> None:
-        menu.addSeparator()
+    def context_items(self, node: TreeNode | None) -> MenuItems:
+        writable = not self._context.read_only
+        items: list[MenuEntry | None] = []
+        target = target_of(node) if node is not None else None
+        if target is not None:
+            items += [MenuEntry("Open", lambda: self.targetActivated.emit(target)), SEPARATOR]
+        if node is not None:
+            items += self._process_items(node, writable)
+            items += self._database_items(node, writable)
+        if self.scope is Scope.HOSTS:
+            items.append(MenuEntry("Add controlled host…", self.add_host, writable))
+        else:
+            items.append(MenuEntry("New server…", self.new_server, writable))
+        return items
+
+    def _process_items(self, node: TreeNode, writable: bool) -> list[MenuEntry | None]:
+        """Processes are acted on where the host is known: under a host."""
+        if node.kind is NodeKind.HOST and isinstance(node.payload, HostSnapshot):
+            snapshot = node.payload
+            return [
+                MenuEntry("Start all levels", lambda: self.process.start_all(snapshot), writable),
+                MenuEntry("Stop all levels", lambda: self.process.stop_all(snapshot), writable),
+                SEPARATOR,
+            ]
+        host = _host_of(node)
+        if node.kind is not NodeKind.SERVER or host is None:
+            return []
+        servers = (node.payload,)
+        return [
+            MenuEntry("Start", lambda: self.process.start(host, servers), writable),
+            MenuEntry("Stop", lambda: self.process.stop(host, servers), writable),
+            MenuEntry("Restart", lambda: self.process.restart(host, servers), writable),
+            SEPARATOR,
+        ]
+
+    def _database_items(self, node: TreeNode, writable: bool) -> list[MenuEntry | None]:
         match node.kind:
             case NodeKind.SERVER:
-                _action(menu, "Add device…", lambda: self._add_device(node.payload), writable)
-                _action(
-                    menu, "Rename server…", lambda: self._rename_server(node.payload), writable
-                )
-                _action(
-                    menu, "Delete server…", lambda: self._delete_server(node.payload), writable
-                )
+                server = node.payload
+                return [
+                    MenuEntry("Add device…", lambda: self._add_device(server), writable),
+                    MenuEntry("Rename server…", lambda: self._rename_server(server), writable),
+                    MenuEntry("Delete server…", lambda: self._delete_server(server), writable),
+                    SEPARATOR,
+                ]
             case NodeKind.DEVICE:
-                _action(
-                    menu, "Rename device…", lambda: self._rename_device(node.payload), writable
-                )
-                _action(menu, "Set alias…", lambda: self._set_alias(node.payload), writable)
-                _action(
-                    menu, "Delete device…", lambda: self._delete_device(node.payload), writable
-                )
+                device = node.payload
+                return [
+                    MenuEntry("Rename device…", lambda: self._rename_device(device), writable),
+                    MenuEntry("Set alias…", lambda: self._set_alias(device), writable),
+                    MenuEntry("Delete device…", lambda: self._delete_device(device), writable),
+                    SEPARATOR,
+                ]
             case _:
-                pass
+                return []
 
     def new_server(self) -> None:
         self._runner.run(
@@ -359,15 +522,30 @@ class Navigator(QWidget):
         dialog = NewServerDialog(hosts, self._tokens, self)
         if not dialog.exec():
             return
+        server, host = dialog.server(), dialog.host_name()
+        then = (lambda: self._bring_up(host, server)) if dialog.start_after() else None
         self.write.execute(
-            [
-                CreateServer(
-                    dialog.server(),
-                    dialog.registrations(),
-                    dialog.host_name(),
-                    dialog.startup_level(),
-                )
-            ]
+            [CreateServer(server, dialog.registrations(), host, dialog.startup_level())],
+            then=then,
+        )
+
+    def _bring_up(self, host: str, server: ServerName) -> None:
+        """Start a new server where it was registered, so that host's Starter has it.
+
+        The Starter lists the servers that have run on its host and rebuilds
+        that list when asked, so it is told once the server is up.
+        """
+
+        async def run() -> None:
+            control = self._context.control
+            await control.start_and_confirm(host, server)
+            await control.update_servers_info(host)
+            self._context.journal.write(f"start {server} on {host}")
+
+        self._runner.run(
+            run(),
+            on_result=lambda _: self.refresh_all(),
+            on_error=lambda report: self._context.journal.report(report, f"start {server}"),
         )
 
     def add_host(self) -> None:
@@ -383,15 +561,33 @@ class Navigator(QWidget):
         )
 
     def _add_device(self, server: ServerName) -> None:
+        async def gather() -> tuple[tuple[str, ...], bool]:
+            classes = await self._context.backend.get_class_list()
+            return classes, await self._context.control.is_running(server)
+
         self._runner.run(
-            self._context.backend.get_class_list(),
-            on_result=lambda classes: self._ask_add_device(server, classes),
+            gather(), on_result=lambda found: self._ask_add_device(server, *found)
         )
 
-    def _ask_add_device(self, server: ServerName, classes: tuple[str, ...]) -> None:
-        dialog = AddDeviceDialog(server, classes, self._tokens, self)
-        if dialog.exec():
-            self.write.execute([CreateDevice(dialog.registration())])
+    def _ask_add_device(
+        self, server: ServerName, classes: tuple[str, ...], running: bool
+    ) -> None:
+        dialog = AddDeviceDialog(server, classes, self._tokens, self, running=running)
+        if not dialog.exec():
+            return
+        then = (lambda: self._reload(server)) if dialog.reload_after() else None
+        self.write.execute([CreateDevice(dialog.registration())], then=then)
+
+    def _reload(self, server: ServerName) -> None:
+        async def run() -> None:
+            await self._context.control.reload_server(server)
+            self._context.journal.write(f"reload {server}")
+
+        self._runner.run(
+            run(),
+            on_result=lambda _: self.refresh_all(),
+            on_error=lambda report: self._context.journal.report(report, f"reload {server}"),
+        )
 
     def _rename_server(self, server: ServerName) -> None:
         dialog = NameDialog("Rename server", "New name", str(server), self)

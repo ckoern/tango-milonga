@@ -81,6 +81,12 @@ async def test_a_controlled_server_restarts_on_the_starters_word(
         await control.start_and_confirm(host, server)
     try:
         await control.set_server_control(server, host, level=1)
+        # the Starter takes a moment to read the changed record
+        for _ in range(int(SETTLE * 4)):
+            line = await control.reported_line(host, server)
+            if line is not None and line.controlled and line.level == 1:
+                break
+            await asyncio.sleep(0.25)
         await control.wait_for_report(host, server, ServerRunState.RUNNING, timeout=SETTLE)
         snapshot = await control.host_snapshot(host)
         (entry,) = [item for item in snapshot.servers if item.name == server]
@@ -101,3 +107,66 @@ async def test_a_controlled_server_restarts_on_the_starters_word(
         await control.update_servers_info(host)
         if not was_running and await control.is_running(server):
             await control.stop_server(host, server)
+
+
+async def test_a_new_server_comes_up_on_its_host_and_reloads_for_a_new_device(
+    tango_backend: PyTangoBackend,
+) -> None:
+    """The workflow behind “New server…”: register, start on the chosen host,
+    then add a device and reload the server so it creates it."""
+    if not os.environ.get("MILONGA_STARTER_SERVER"):
+        pytest.skip("set MILONGA_STARTER_SERVER to allow starting processes")
+    from milonga.core.commands import CommandRunner, CreateDevice, CreateServer, DeleteServer
+    from milonga.core.model import DeviceRegistration
+    from milonga.core.names import DeviceName
+    from tests.integration.conftest import _delete_record
+
+    server = ServerName("TangoTest", "milonga")
+    first = DeviceName.parse("milonga/tangotest/1")
+    second = DeviceName.parse("milonga/tangotest/2")
+    control = StarterControl(tango_backend)
+    hosts = await control.controlled_hosts()
+    if not hosts:
+        pytest.skip("no Starter in this control system")
+    host = hosts[0]
+    runner = CommandRunner(tango_backend)
+
+    try:
+        await runner.run(
+            [
+                CreateServer(
+                    server,
+                    (DeviceRegistration(first, "TangoTest", server),),
+                    host=host,
+                    level=2,
+                )
+            ]
+        )
+        await control.start_and_confirm(host, server)
+        assert await control.is_running(server)
+
+        # the Starter learns of a server that has never run on its host only
+        # when it rebuilds its list
+        await control.update_servers_info(host)
+        await control.wait_for_report(host, server, ServerRunState.RUNNING, timeout=SETTLE)
+        snapshot = await control.host_snapshot(host)
+        (entry,) = [item for item in snapshot.servers if item.name == server]
+        assert entry.info.controlled and entry.info.level == 2
+
+        await runner.run([CreateDevice(DeviceRegistration(second, "TangoTest", server))])
+        assert not (await tango_backend.get_device_info(second)).exported
+        await control.reload_server(server)
+        for _ in range(40):
+            if (await tango_backend.get_device_info(second)).exported:
+                break
+            await asyncio.sleep(0.5)
+        assert (await tango_backend.get_device_info(second)).exported
+        assert await tango_backend.ping(second) > 0
+    finally:
+        if await control.is_running(server):
+            await control.stop_server(host, server)
+            await control.wait_until(server, running=False, timeout=SETTLE)
+        if server in await tango_backend.get_server_list():
+            await runner.run([DeleteServer(server)])
+        await asyncio.to_thread(_delete_record, str(server))
+        await control.update_servers_info(host)

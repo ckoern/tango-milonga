@@ -1,6 +1,7 @@
 import pytest
 
 from milonga.core.backend.fake import FakeBackend
+from milonga.core.model import HostSnapshot
 from milonga.core.names import DeviceName, ServerName
 from milonga.ui.context import AppContext, Target
 from milonga.ui.mainwindow import MainWindow
@@ -69,7 +70,18 @@ async def test_inspector_follows_the_selection(window: MainWindow) -> None:
     node = TreeNode(NodeKind.DEVICE, "phi", DeviceName.parse("id09/motor/phi"), detail="motor")
     window.navigator.nodeSelected.emit(node)
     assert window.inspector.open_button.isEnabled()
+    assert window.inspector.open_button.text() == "Open device panel"
     window.navigator.nodeSelected.emit(None)
+    assert not window.inspector.open_button.isEnabled()
+    assert window.inspector.open_button.text() == "Select something to open"
+
+
+async def test_the_open_button_names_the_panel_it_opens(window: MainWindow) -> None:
+    host = TreeNode(NodeKind.HOST, "id09-srv-02", HostSnapshot("id09-srv-02"))
+    window.navigator.nodeSelected.emit(host)
+    assert window.inspector.open_button.text() == "Open host panel"
+    domain = TreeNode(NodeKind.DOMAIN, "sys", "sys")
+    window.navigator.nodeSelected.emit(domain)
     assert not window.inspector.open_button.isEnabled()
 
 

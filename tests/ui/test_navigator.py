@@ -157,3 +157,67 @@ async def test_unreachable_host_is_reported_not_raised(
     failed = next(node for node in hosts if node.label == "id09-srv-02")
     assert failed.category is StateCategory.FAULT
     assert "does not answer" in failed.tooltip
+
+
+async def test_each_scope_keeps_its_own_tree(navigator: Navigator) -> None:
+    navigator.set_scope(Scope.DEVICES)
+    await navigator.idle()
+    devices = navigator.model
+    navigator.set_scope(Scope.CLASSES)
+    await navigator.idle()
+    assert navigator.model is not devices
+    calls = navigator.pages[Scope.DEVICES].model.rowCount()
+    navigator.set_scope(Scope.DEVICES)
+    await navigator.idle()
+    assert navigator.model is devices
+    assert devices.rowCount() == calls
+
+
+async def test_a_tab_loads_the_first_time_it_is_shown(
+    navigator: Navigator, backend: FakeBackend
+) -> None:
+    await navigator.idle()
+    assert not navigator.pages[Scope.ALIASES].loaded
+    navigator.tab_bar.setCurrentIndex(list(Scope).index(Scope.ALIASES))
+    await navigator.idle()
+    assert navigator.pages[Scope.ALIASES].loaded
+    assert navigator.scope is Scope.ALIASES
+    assert navigator.model.rowCount() == 2
+
+
+async def test_the_filter_follows_the_tab(navigator: Navigator) -> None:
+    navigator.set_scope(Scope.CLASSES)
+    await navigator.idle()
+    navigator.filter_box.setText("IcePAPMotor")
+    navigator.set_scope(Scope.ALIASES)
+    await navigator.idle()
+    assert navigator.proxy.filterRegularExpression().pattern() == "IcePAPMotor"
+
+
+async def test_every_domain_in_the_device_tab_expands(navigator: Navigator) -> None:
+    navigator.set_scope(Scope.DEVICES)
+    await navigator.idle()
+    # the path a view takes when a branch opens: through the proxy
+    for row in range(navigator.proxy.rowCount(QModelIndex())):
+        navigator.proxy.fetchMore(navigator.proxy.index(row, 0, QModelIndex()))
+    await navigator.idle()
+    for row in range(navigator.proxy.rowCount(QModelIndex())):
+        domain = navigator.proxy.index(row, 0, QModelIndex())
+        assert navigator.proxy.rowCount(domain) > 0, navigator.node_at(domain)
+
+
+def test_every_scope_is_one_click_away(navigator: Navigator) -> None:
+    """Six labels in a row need more width than the navigator has, so they wrap."""
+    selector = navigator.tab_bar
+    assert selector._group.buttons() and len(selector._group.buttons()) == len(list(Scope))
+    assert selector.sizeHint().width() <= 300
+    assert selector.sizeHint().height() > 30, "two rows"
+
+
+async def test_clicking_a_scope_switches_the_tree(navigator: Navigator) -> None:
+    await navigator.idle()
+    buttons = {button.text(): button for button in navigator.tab_bar._group.buttons()}
+    buttons["Classes"].click()
+    await navigator.idle()
+    assert navigator.scope is Scope.CLASSES
+    assert navigator.model.rowCount() > 0

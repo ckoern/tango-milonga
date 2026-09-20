@@ -1,6 +1,7 @@
 import pytest
 
 from milonga.core.backend.fake import FakeBackend
+from milonga.core.enums import ServerRunState
 from milonga.core.names import DeviceName, ServerName, starter_device
 from milonga.ui.context import AppContext, Target
 from milonga.ui.dialogs import ConfirmDialog, DiffDialog, NameDialog
@@ -62,7 +63,90 @@ async def test_creating_a_server_from_the_navigator(
     assert server in await backend.get_server_list()
     assert device in await backend.get_device_list_for_server(server)
     assert (await backend.get_server_info(server)).level == 3
-    assert context.journal.entries[-1].undoable
+    created, started = context.journal.entries[-2:]
+    assert created.undoable and "create server" in created.summary
+    assert started.summary == f"start {server} on id09-srv-02"
+
+
+async def test_a_new_server_joins_the_starter_of_its_host(
+    navigator: Navigator,
+    backend: FakeBackend,
+    accept_dialogs: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    server = ServerName("Vacuum", "id09-side")
+
+    def fill(self: NewServerDialog) -> int:
+        self.executable.setText(server.exec_name)
+        self.instance.setText(server.instance)
+        self.host.setCurrentText("id09-srv-02")
+        self.level.setValue(2)
+        for column, text in ((0, "id09/vac/gauge-7"), (1, "VacuumGauge")):
+            item = self.devices.item(0, column)
+            assert item is not None
+            item.setText(text)
+        return 1
+
+    monkeypatch.setattr(NewServerDialog, "exec", fill)
+    navigator.new_server()
+    await navigator.idle()
+
+    snapshot = await navigator._context.control.host_snapshot("id09-srv-02")
+    (entry,) = [item for item in snapshot.servers if item.name == server]
+    assert entry.info.controlled and entry.info.level == 2
+    assert entry.run_state is ServerRunState.RUNNING
+
+
+async def test_starting_can_be_left_for_later(
+    navigator: Navigator,
+    backend: FakeBackend,
+    accept_dialogs: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    server = ServerName("Vacuum", "id09-later")
+
+    def fill(self: NewServerDialog) -> int:
+        self.executable.setText(server.exec_name)
+        self.instance.setText(server.instance)
+        self.host.setCurrentText("id09-srv-02")
+        self.start_now.setChecked(False)
+        for column, text in ((0, "id09/vac/gauge-8"), (1, "VacuumGauge")):
+            item = self.devices.item(0, column)
+            assert item is not None
+            item.setText(text)
+        return 1
+
+    monkeypatch.setattr(NewServerDialog, "exec", fill)
+    navigator.new_server()
+    await navigator.idle()
+    assert not await navigator._context.control.is_running(server)
+
+
+async def test_a_device_added_to_a_running_server_is_created_by_a_reload(
+    navigator: Navigator,
+    backend: FakeBackend,
+    accept_dialogs: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    offered: list[bool] = []
+
+    def fill(self: AddDeviceDialog) -> int:
+        offered.append(self.reload_after())
+        self.name.setText("id09/motor/omega")
+        self.class_name.setCurrentText("IcePAPMotor")
+        return 1
+
+    monkeypatch.setattr(AddDeviceDialog, "exec", fill)
+    navigator._add_device(ICEPAP)
+    await navigator.idle()
+    assert offered == [True]
+    info = await backend.get_device_info(DeviceName.parse("id09/motor/omega"))
+    assert info.exported
+    assert context_summary(navigator)[-1] == f"reload {ICEPAP}"
+
+
+def context_summary(navigator: Navigator) -> list[str]:
+    return [entry.summary for entry in navigator._context.journal.entries]
 
 
 async def test_adding_a_controlled_host(

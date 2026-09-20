@@ -1,10 +1,11 @@
 """Design tokens and the stylesheet built from them."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, replace
 from enum import StrEnum
 
+from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QFontDatabase, QPalette
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QWidget
 
 from milonga.core.enums import (
     AttrQuality,
@@ -20,8 +21,12 @@ class Theme(StrEnum):
     DARK = "dark"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True)
 class Tokens:
+    """A palette. The application shares one mutable instance, ``ACTIVE``: a
+    theme change rewrites it in place, so everything reading it at paint time
+    follows without being rebuilt. ``LIGHT`` and ``DARK`` are never mutated."""
+
     ink: str
     ink_2: str
     ink_3: str
@@ -97,6 +102,39 @@ DARK = Tokens(
 )
 
 TOKENS: dict[Theme, Tokens] = {Theme.LIGHT: LIGHT, Theme.DARK: DARK}
+
+ACTIVE = replace(LIGHT)
+
+
+class ThemeSignals(QObject):
+    """For the few widgets that cannot be styled by the stylesheet alone."""
+
+    changed = pyqtSignal()
+
+
+theme_signals = ThemeSignals()
+
+_CHIP_NAMES: dict[StateCategory, str] = {
+    StateCategory.NOMINAL: "ok",
+    StateCategory.BUSY: "busy",
+    StateCategory.WARNING: "warn",
+    StateCategory.FAULT: "bad",
+    StateCategory.INACTIVE: "idle",
+    StateCategory.UNKNOWN: "idle",
+}
+
+
+def set_role(widget: QWidget, name: str, value: str) -> None:
+    """Set a styling property and make the stylesheet look at it again."""
+    widget.setProperty(name, value)
+    style = widget.style()
+    if style is not None:
+        style.unpolish(widget)
+        style.polish(widget)
+
+
+def chip_name(category: StateCategory) -> str:
+    return _CHIP_NAMES[category]
 
 _CATEGORY_TOKEN: dict[StateCategory, str] = {
     StateCategory.NOMINAL: "ok",
@@ -244,6 +282,20 @@ QTabBar::tab:selected {{
     font-weight: 600;
 }}
 QTabBar::close-button {{ subcontrol-position: right; }}
+QToolButton[scopeTab="true"] {{
+    background: {tokens.panel_2};
+    color: {tokens.ink_3};
+    border: none;
+    border-bottom: 2px solid {tokens.line};
+    padding: 5px 4px;
+}}
+QToolButton[scopeTab="true"]:hover {{ color: {tokens.ink}; }}
+QToolButton[scopeTab="true"]:checked {{
+    background: {tokens.ground};
+    color: {tokens.ink};
+    font-weight: 600;
+    border-bottom: 2px solid {tokens.accent};
+}}
 QLineEdit, QComboBox, QSpinBox, QPlainTextEdit, QTextEdit {{
     background: {tokens.panel};
     border: 1px solid {tokens.line};
@@ -272,6 +324,31 @@ QScrollBar::handle {{ background: {tokens.line_2}; border-radius: 5px; min-heigh
 QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; width: 0; }}
 QScrollBar::add-page, QScrollBar::sub-page {{ background: transparent; }}
 QSplitter::handle {{ background: {tokens.line}; }}
+QLabel[role="muted"] {{ color: {tokens.ink_3}; }}
+QLabel[role="error"] {{ color: {tokens.bad}; }}
+QLabel[role="success"] {{ color: {tokens.ok}; }}
+QLabel[role="title"] {{ color: {tokens.ink_2}; font-weight: 600; }}
+QLabel[role="section"] {{
+    color: {tokens.ink_3};
+    font-weight: 600;
+    letter-spacing: 1px;
+    font-size: 8pt;
+}}
+QLabel#stateChip {{ border-radius: 9px; padding: 2px 10px; font-weight: 600; }}
+QLabel#stateChip[chip="ok"] {{ background: {tokens.ok_soft}; color: {tokens.ok}; }}
+QLabel#stateChip[chip="busy"] {{ background: {tokens.busy_soft}; color: {tokens.busy}; }}
+QLabel#stateChip[chip="warn"] {{ background: {tokens.warn_soft}; color: {tokens.warn}; }}
+QLabel#stateChip[chip="bad"] {{ background: {tokens.bad_soft}; color: {tokens.bad}; }}
+QLabel#stateChip[chip="idle"] {{ background: {tokens.idle_soft}; color: {tokens.idle}; }}
+QFrame#errorBanner {{ background: {tokens.bad_soft}; border-left: 3px solid {tokens.bad}; }}
+QFrame#errorBanner QLabel {{ background: transparent; color: {tokens.bad}; }}
+QFrame#hostCard {{
+    background: {tokens.panel};
+    border: 1px solid {tokens.line};
+    border-radius: 7px;
+}}
+QFrame#hostCard[alert="true"] {{ border-color: {tokens.bad}; }}
+QFrame#hostCard QLabel {{ background: transparent; }}
 QToolTip {{
     background: {tokens.panel_3};
     color: {tokens.ink};
@@ -282,7 +359,11 @@ QToolTip {{
 
 
 def apply_theme(app: QApplication, theme: Theme) -> Tokens:
-    tokens = TOKENS[theme]
+    """Switch the whole application in place and return the shared palette."""
+    source = TOKENS[theme]
+    for item in fields(Tokens):
+        setattr(ACTIVE, item.name, getattr(source, item.name))
+    tokens = ACTIVE
     palette = QPalette()
     palette.setColor(QPalette.ColorRole.Window, QColor(tokens.ground))
     palette.setColor(QPalette.ColorRole.WindowText, QColor(tokens.ink))
@@ -298,4 +379,9 @@ def apply_theme(app: QApplication, theme: Theme) -> Tokens:
     palette.setColor(QPalette.ColorRole.PlaceholderText, QColor(tokens.ink_3))
     app.setPalette(palette)
     app.setStyleSheet(stylesheet(tokens))
+    theme_signals.changed.emit()
+    # restyling does not repaint by itself: without this, widgets that nothing
+    # else invalidates keep showing the previous theme until they are touched
+    for widget in app.allWidgets():
+        widget.update()
     return tokens

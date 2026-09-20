@@ -410,7 +410,8 @@ class FakeBackend:
         await self._write("add_server")
         if server in self.servers:
             raise TangoError(f"server {server} already exists")
-        self.servers[server] = FakeServer(server)
+        # the database registers the admin device along with the server
+        self.register_server(server, "")
         for registration in devices:
             self.devices[registration.name] = FakeDevice(
                 registration.name, registration.class_name, server
@@ -793,6 +794,10 @@ class FakeBackend:
             return self._starter_command(entry, command, argin)
         if entry.class_name == ADMIN_CLASS and command == "Kill":
             self.stop_server(entry.server)
+            return None
+        if entry.class_name == ADMIN_CLASS and command == "RestartServer":
+            for served in self._devices_of(entry.server):
+                self._export(served)
             return None
         handler = entry.handlers.get(command)
         if handler is not None:

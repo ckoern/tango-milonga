@@ -18,7 +18,7 @@ from milonga.ui.context import AppContext, Target
 from milonga.ui.models.delegate import NodeDelegate
 from milonga.ui.models.tables import ObjectTableModel
 from milonga.ui.tasks import TaskRunner
-from milonga.ui.theme import Tokens, mono_font
+from milonga.ui.theme import Tokens, mono_font, set_role
 from milonga.ui.widgets import ErrorBanner, HeaderBar
 
 
@@ -138,7 +138,7 @@ class InfoForm(QWidget):
                 # sized itself to it would widen the whole window
                 label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
                 caption = QLabel(name, self)
-                caption.setStyleSheet(f"color: {self._tokens.ink_3};")
+                set_role(caption, "role", "muted")
                 self._layout.addRow(caption, label)
                 self._values[name] = label
             label.setText(_shorten(value))

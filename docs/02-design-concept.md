@@ -378,6 +378,10 @@ Starter, and each covered by a test:
   moves properties, attribute properties and alias, then deletes the old one.
 * The Starter of Tango 10 has no notification-daemon attribute or command, and
   reports a missing log file as an error.
+* **Registering a server does not give it to a Starter.** A Starter controls
+  what has run on its host, so creating a server offers to start it there, and
+  a device added to a running server offers to reload that server, which is
+  the only way the running process learns about it.
 * **The `Servers` line is `name\tstate\tcontrolled\tlevel\t…`**, tab-separated,
   with a fifth field the parser ignores. The parser was written tolerant before
   a real line was seen, and read the real one correctly.

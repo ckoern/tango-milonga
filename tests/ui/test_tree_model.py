@@ -110,3 +110,36 @@ async def test_parent_and_index_round_trip(runner: TaskRunner) -> None:
     child = model.index(0, 0, root)
     assert model.parent(child) == root
     assert model.parent(root) == QModelIndex()
+
+
+async def test_every_top_level_node_expands_under_its_own_index(runner: TaskRunner) -> None:
+    async def loader(node: TreeNode) -> list[TreeNode]:
+        return [TreeNode(NodeKind.DEVICE, f"{node.label}/child")]
+
+    model = LazyTreeModel(loader, runner)
+    model.set_roots(
+        [TreeNode(NodeKind.DOMAIN, name, expandable=True) for name in ("id09", "sys", "tango")]
+    )
+    for row in range(3):
+        model.fetchMore(model.index(row, 0, QModelIndex()))
+    await model.idle()
+    for row, name in enumerate(("id09", "sys", "tango")):
+        parent = model.index(row, 0, QModelIndex())
+        assert model.rowCount(parent) == 1
+        child = model.node(model.index(0, 0, parent))
+        assert child is not None and child.label == f"{name}/child"
+        assert model.parent(model.index(0, 0, parent)) == parent
+
+
+async def test_nodes_with_equal_contents_stay_distinct(runner: TaskRunner) -> None:
+    async def loader(node: TreeNode) -> list[TreeNode]:
+        return [TreeNode(NodeKind.DEVICE, "same"), TreeNode(NodeKind.DEVICE, "same")]
+
+    model = LazyTreeModel(loader, runner)
+    model.set_roots([TreeNode(NodeKind.DOMAIN, "sys", expandable=True)])
+    root = model.index(0, 0, QModelIndex())
+    model.fetchMore(root)
+    await model.idle()
+    second = model.index(1, 0, root)
+    assert model.parent(second) == root
+    assert second.row() == 1
