@@ -147,7 +147,13 @@ async def test_a_server_under_a_host_can_be_started_from_the_navigator(
     host = await _host_node(navigator)
     vacuum = next(child for child in host.children or [] if child.payload == VACUUM)
     items = navigator.context_items(vacuum)
-    assert labels(items)[:4] == ["Open", "Start", "Stop", "Restart"]
+    assert labels(items)[:5] == [
+        "Open",
+        "Open members as tiles",
+        "Start",
+        "Stop",
+        "Restart",
+    ]
     entry(items, "Start").action()
     await navigator.idle()
     assert backend.servers[VACUUM].run_state is ServerRunState.RUNNING

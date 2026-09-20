@@ -1,6 +1,6 @@
 """What every panel is handed: the services, the journal, and a way to navigate."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
@@ -17,9 +17,12 @@ from milonga.core.services.groups import HostGroups
 from milonga.core.services.inventory import Inventory
 from milonga.core.store import SystemStore
 
+PATH_SEPARATOR = "\t"
+
 
 class TargetKind(StrEnum):
     SYSTEM = "system"
+    TILES = "tiles"
     DEVICE = "device"
     SERVER = "server"
     CLASS = "class"
@@ -57,6 +60,19 @@ class Target:
     @classmethod
     def system(cls) -> "Target":
         return cls(TargetKind.SYSTEM, "system")
+
+    @classmethod
+    def tiles(cls, scope: str, path: Sequence[str]) -> "Target":
+        """The children of one branch of a tree, as tiles.
+
+        Labels can hold slashes — a device is ``domain/family/member`` — so the
+        path is joined with a character a Tango name cannot contain.
+        """
+        return cls(TargetKind.TILES, PATH_SEPARATOR.join([scope, *path]))
+
+    @property
+    def path(self) -> tuple[str, ...]:
+        return tuple(self.name.split(PATH_SEPARATOR))
 
     @property
     def uri(self) -> str:

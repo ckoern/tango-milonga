@@ -104,11 +104,13 @@ async def test_releasing_drops_every_subscription(
 
 
 async def test_the_overview_shows_one_card_per_host(overview: OverviewPanel) -> None:
-    assert len(overview._cards) == 6
-    card = overview._cards[HOST]
+    assert len(overview.grid.cards) == 6
+    card = overview.grid.card(HOST)
+    assert card is not None
     assert card.chip.text() == "MIXED"
-    assert card.counts.text() == "6 running · 1 stopped"
-    assert card.levels.text() == "L1–3"
+    assert card.left.text() == "6 running · 1 stopped"
+    assert card.right.text() == "L1–3"
+    assert card.title.text() == HOST
 
 
 async def test_the_overview_summarises_the_control_system(
@@ -119,19 +121,22 @@ async def test_the_overview_summarises_the_control_system(
 
 
 async def test_an_unreachable_host_card_says_why(overview: OverviewPanel) -> None:
-    card = overview._cards["id09-vac-01"]
+    card = overview.grid.card("id09-vac-01")
+    assert card is not None
     assert card.chip.text() == "UNREACHABLE"
-    assert card.counts.text() == "Starter does not answer"
-    assert "does not answer" in card.counts.toolTip()
+    assert card.left.text() == "Starter does not answer"
+    assert "does not answer" in card.left.toolTip()
 
 
 async def test_a_card_follows_the_control_system(
     overview: OverviewPanel, backend: FakeBackend
 ) -> None:
+    card = overview.grid.card(HOST)
+    assert card is not None
     backend.start_server(VACUUM)
-    assert overview._cards[HOST].chip.text() == "ALL_RUNNING"
+    assert card.chip.text() == "ALL_RUNNING"
     backend.stop_server(TANGOTEST)
-    assert overview._cards[HOST].chip.text() == "MIXED"
+    assert card.chip.text() == "MIXED"
 
 
 async def test_double_clicking_a_card_opens_the_host(
@@ -139,7 +144,9 @@ async def test_double_clicking_a_card_opens_the_host(
 ) -> None:
     opened: list[Target] = []
     context.open_target = opened.append
-    overview._cards[HOST].activated.emit(HOST)
+    card = overview.grid.card(HOST)
+    assert card is not None
+    card.activated.emit(HOST)
     assert opened == [Target.host(HOST)]
 
 

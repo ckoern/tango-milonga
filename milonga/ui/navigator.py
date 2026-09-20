@@ -119,7 +119,9 @@ class ScopeLoader:
         backend = self._context.backend
         match node.kind:
             case NodeKind.GROUP:
-                snapshots = await self._context.control.host_snapshots(node.payload)
+                snapshots = await self._context.control.host_snapshots(
+                    node.payload, groups=dict.fromkeys(node.payload, node.label)
+                )
                 return [self._host_node(snapshot) for snapshot in snapshots]
             case NodeKind.HOST:
                 snapshot = node.payload
@@ -210,6 +212,16 @@ class ScopeLoader:
             device,
             tooltip=str(device),
         )
+
+
+def node_path(node: TreeNode) -> tuple[str, ...]:
+    """The labels from the root down to this node."""
+    labels: list[str] = []
+    current: TreeNode | None = node
+    while current is not None:
+        labels.append(current.label)
+        current = current.parent
+    return tuple(reversed(labels))
 
 
 def _host_of(node: TreeNode) -> str | None:
@@ -358,6 +370,7 @@ class Navigator(QWidget):
         self.pages: dict[Scope, ScopePage] = {}
         for scope in Scope:
             page = ScopePage(context, tokens, scope, self._runner, self.stack)
+            page.view.clicked.connect(self._clicked)
             page.view.doubleClicked.connect(self._activated)
             page.view.customContextMenuRequested.connect(self._context_menu)
             selection = page.view.selectionModel()
@@ -462,7 +475,14 @@ class Navigator(QWidget):
         items: list[MenuEntry | None] = []
         target = target_of(node) if node is not None else None
         if target is not None:
-            items += [MenuEntry("Open", lambda: self.targetActivated.emit(target)), SEPARATOR]
+            items.append(MenuEntry("Open", lambda: self.targetActivated.emit(target)))
+        if node is not None and node.expandable:
+            tiles = self.tiles_target(node)
+            items.append(
+                MenuEntry("Open members as tiles", lambda: self.targetActivated.emit(tiles))
+            )
+        if items:
+            items.append(SEPARATOR)
         if node is not None:
             items += self._process_items(node, writable)
             items += self._database_items(node, writable)
@@ -618,9 +638,20 @@ class Navigator(QWidget):
     def _delete_device(self, device: DeviceName) -> None:
         self.write.execute([DeleteDevice(device)])
 
+    def _clicked(self, index: QModelIndex) -> None:
+        """A single click opens and closes a branch."""
+        node = self.node_at(index)
+        if node is not None and (node.expandable or node.loaded):
+            self.view.setExpanded(index, not self.view.isExpanded(index))
+
     def _activated(self, index: QModelIndex) -> None:
+        """A double click opens what the node holds: the members of a branch as
+        tiles, or the panel of a leaf."""
         node = self.node_at(index)
         if node is None:
+            return
+        if node.expandable:
+            self.targetActivated.emit(self.tiles_target(node))
             return
         if node.kind is NodeKind.ALIAS:
             self._runner.run(
@@ -632,8 +663,9 @@ class Navigator(QWidget):
         target = target_of(node)
         if target is not None:
             self.targetActivated.emit(target)
-        elif node.expandable:
-            self.view.setExpanded(index, not self.view.isExpanded(index))
+
+    def tiles_target(self, node: TreeNode) -> Target:
+        return Target.tiles(self.scope.name, node_path(node))
 
 
 UNKNOWN_CATEGORY = StateCategory.UNKNOWN

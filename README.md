@@ -61,7 +61,8 @@ milonga/ui/                                 the only package importing Qt
   format.py                                 Tango values to text and back
   plots.py                                  spectrum and image views
   models/                                   lazy tree, generic table, live values
-  panels/                                   overview, host, device, server, class
+  tiles.py                                  the tile grid the overviews share
+  panels/                                   overview, node tiles, host, device, server, class
   mainwindow.py, search.py                  window chrome and the command palette
 ```
 
@@ -87,11 +88,16 @@ of the window becomes an ordinary window: Qt would otherwise make it a tool
 window, which some window managers — WSLg's among them — leave undecorated,
 always on top and unfocusable.
 
-The navigator has a tab per scope, each keeping its own tree. Right-click
-anywhere that acts — a server, a startup level, an attribute, a command, a
-property, a host card, a journal entry — for the same actions the buttons
-offer. Switching theme happens in place: the window, its tabs and any unsaved
-edit stay as they are.
+The navigator has a tab per scope, each keeping its own tree. A single click
+opens and closes a branch; a double-click shows what is inside it as tiles —
+the families of a domain, the instances of a server, the hosts of a group —
+each tile carrying the same state, marks and counts as a card in the system
+overview, and opening its own tiles or its panel in turn. Branches wider than
+200 members are counted rather than asked, so a large domain costs no flood of
+calls. Right-click anywhere that acts — a server, a startup level, an
+attribute, a command, a property, a tile, a journal entry — for the same
+actions the buttons offer. Switching theme happens in place: the window, its
+tabs and any unsaved edit stay as they are.
 
 The device panel is live: scalar values arrive by Tango events while the panel
 is on screen and stop when it is hidden. A spectrum or image is watched only

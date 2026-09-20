@@ -116,14 +116,57 @@ async def test_widget_loads_roots_and_switches_scope(navigator: Navigator) -> No
     assert navigator.scope is Scope.CLASSES
 
 
-async def test_double_click_emits_the_target(navigator: Navigator) -> None:
+async def test_double_clicking_a_branch_opens_its_members_as_tiles(
+    navigator: Navigator,
+) -> None:
     navigator.set_scope(Scope.CLASSES)
     await navigator.idle()
     targets: list[Target] = []
     navigator.targetActivated.connect(targets.append)
     index = navigator.proxy.index(0, 0, QModelIndex())
+    label = navigator.node_at(index).label
     navigator.view.doubleClicked.emit(index)
-    assert targets and targets[0].kind is TargetKind.CLASS
+    assert targets and targets[0].kind is TargetKind.TILES
+    assert targets[0].path == ("CLASSES", label)
+
+
+async def test_double_clicking_a_leaf_opens_its_panel(navigator: Navigator) -> None:
+    navigator.set_scope(Scope.DEVICES)
+    await navigator.idle()
+    domain = navigator.proxy.index(0, 0, QModelIndex())
+    navigator.proxy.fetchMore(domain)
+    await navigator.idle()
+    family = navigator.proxy.index(0, 0, domain)
+    navigator.proxy.fetchMore(family)
+    await navigator.idle()
+    device = navigator.proxy.index(0, 0, family)
+
+    targets: list[Target] = []
+    navigator.targetActivated.connect(targets.append)
+    navigator.view.doubleClicked.emit(device)
+    assert targets and targets[0].kind is TargetKind.DEVICE
+
+
+async def test_a_single_click_opens_and_closes_a_branch(navigator: Navigator) -> None:
+    navigator.set_scope(Scope.DEVICES)
+    await navigator.idle()
+    index = navigator.proxy.index(0, 0, QModelIndex())
+    assert not navigator.view.isExpanded(index)
+    navigator.view.clicked.emit(index)
+    await navigator.idle()
+    assert navigator.view.isExpanded(index)
+    navigator.view.clicked.emit(index)
+    assert not navigator.view.isExpanded(index)
+
+
+async def test_a_single_click_on_a_leaf_opens_nothing(navigator: Navigator) -> None:
+    navigator.set_scope(Scope.ALIASES)
+    await navigator.idle()
+    targets: list[Target] = []
+    navigator.targetActivated.connect(targets.append)
+    navigator.view.clicked.emit(navigator.proxy.index(0, 0, QModelIndex()))
+    await navigator.idle()
+    assert targets == []
 
 
 async def test_activating_an_alias_resolves_the_device(navigator: Navigator) -> None:
