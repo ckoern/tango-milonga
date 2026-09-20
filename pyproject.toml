@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "milonga"
+name = "tango-milonga"
 version = "0.1.0"
 description = "Qt administration console for Tango Controls"
 readme = "README.md"
