@@ -6,7 +6,7 @@ are cancelled, so a slow database answer can never reach a deleted panel.
 
 import asyncio
 from collections.abc import Awaitable, Callable, Coroutine
-from typing import Any
+from typing import Any, TypeAlias, TypeVar
 
 from PyQt6 import sip
 from PyQt6.QtCore import QObject
@@ -15,7 +15,8 @@ from milonga.core.errors import ErrorReport, TangoError
 from milonga.core.tasks import drain_tasks
 from milonga.ui.context import Journal
 
-type Coro[T] = Coroutine[Any, Any, T]
+T = TypeVar("T")
+Coro: TypeAlias = Coroutine[Any, Any, T]
 
 
 def _usable_loop() -> asyncio.AbstractEventLoop | None:
@@ -53,7 +54,7 @@ class TaskRunner(QObject):
     def pending(self) -> int:
         return len(self._tasks)
 
-    def run[T](
+    def run(
         self,
         coro: Awaitable[T],
         *,
@@ -81,7 +82,7 @@ class TaskRunner(QObject):
         """Wait for everything in flight, including calls those calls start."""
         await drain_tasks(self._tasks)
 
-    def _finish[T](
+    def _finish(
         self,
         task: asyncio.Task[T],
         on_result: Callable[[T], None] | None,

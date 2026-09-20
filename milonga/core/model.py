@@ -8,7 +8,7 @@ the event rate.
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import Any, TypeAlias
 
 from milonga.core.enums import (
     AttrDataFormat,
@@ -30,7 +30,7 @@ from milonga.core.enums import (
 from milonga.core.errors import ErrorReport
 from milonga.core.names import AttributeRef, DeviceName, ServerName
 
-type PropertyValues = tuple[str, ...]
+PropertyValues: TypeAlias = tuple[str, ...]
 
 
 # --------------------------------------------------------------------------- database
@@ -313,6 +313,6 @@ class MonitorStats:
     watchers: int = 0
 
 
-type AttributePropertyMap = Mapping[str, Mapping[str, PropertyValues]]
-type StateSummary = Mapping[StateCategory, int]
-type LogLevelMap = Mapping[DeviceName, LogLevel]
+AttributePropertyMap: TypeAlias = Mapping[str, Mapping[str, PropertyValues]]
+StateSummary: TypeAlias = Mapping[StateCategory, int]
+LogLevelMap: TypeAlias = Mapping[DeviceName, LogLevel]

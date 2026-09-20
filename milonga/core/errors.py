@@ -1,7 +1,8 @@
 """Structured errors. ``DevFailed`` chains become data instead of strings."""
 
 from dataclasses import dataclass, field
-from enum import StrEnum
+
+from milonga.compat import StrEnum
 
 
 class ErrorSeverity(StrEnum):

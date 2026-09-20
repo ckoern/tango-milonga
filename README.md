@@ -35,6 +35,7 @@ against an in-memory demo system with `--demo`.
 ![The diff shown before anything is written](docs/screenshot-diff.png)
 
 ```
+milonga/compat.py                           what Python 3.10 does not have
 milonga/core/                               no Qt, no PyTango
   names.py, enums.py, errors.py, model.py   value objects and snapshots
   backend/protocol.py                       the async contract, coroutines only
@@ -123,11 +124,15 @@ with a preview and an undo.
 python3 -m venv .venv
 .venv/bin/pip install -e '.[dev,gui,tango]'
 
-.venv/bin/pytest                    # 355 tests, no control system needed
+.venv/bin/pytest                    # 371 tests, no control system needed
 .venv/bin/pytest --integration      # plus 28 against the control system in TANGO_HOST
 .venv/bin/mypy milonga tests
 .venv/bin/ruff check .
+.venv/bin/vermin -t=3.10 --violations milonga tests
 ```
+
+`vermin` holds the language floor: mypy checks against whichever interpreter
+runs it, and numpy's own stubs rule out pinning it to 3.10.
 
 The integration tests read whatever the control system holds, and write only
 inside a sandbox — a server, devices, a class, an alias and a free-property

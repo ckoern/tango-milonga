@@ -9,8 +9,8 @@ is always safe to show.
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from enum import StrEnum
 
+from milonga.compat import StrEnum
 from milonga.core.backend.protocol import TangoBackend
 from milonga.core.errors import ReadOnlyError
 

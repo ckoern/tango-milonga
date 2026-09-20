@@ -3,10 +3,10 @@
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import StrEnum
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
+from milonga.compat import StrEnum
 from milonga.core.backend.protocol import TangoBackend
 from milonga.core.commands import Command, CommandRunner
 from milonga.core.errors import ErrorReport

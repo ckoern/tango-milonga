@@ -1,6 +1,6 @@
 """Enumerations mirroring the Tango type system."""
 
-from enum import StrEnum
+from milonga.compat import StrEnum
 
 
 class StateCategory(StrEnum):

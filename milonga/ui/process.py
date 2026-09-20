@@ -5,6 +5,7 @@ a stop asks the same question wherever it is started from.
 """
 
 from collections.abc import Awaitable, Callable, Sequence
+from typing import TypeAlias
 
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import QWidget
@@ -15,7 +16,7 @@ from milonga.ui.context import AppContext
 from milonga.ui.dialogs import ConfirmDialog
 from milonga.ui.tasks import TaskRunner
 
-type Operation = Callable[[str, ServerName], Awaitable[None]]
+Operation: TypeAlias = Callable[[str, ServerName], Awaitable[None]]
 
 
 class ProcessActions(QObject):

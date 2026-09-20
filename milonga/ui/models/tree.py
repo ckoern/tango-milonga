@@ -6,11 +6,11 @@ system with ten thousand devices costs one query at startup.
 
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
-from enum import StrEnum
-from typing import Any
+from typing import Any, TypeAlias
 
 from PyQt6.QtCore import QAbstractItemModel, QModelIndex, QObject, Qt, pyqtSignal
 
+from milonga.compat import StrEnum
 from milonga.core.enums import StateCategory
 from milonga.core.errors import ErrorReport
 from milonga.ui.tasks import TaskRunner
@@ -56,7 +56,7 @@ class _Root:
     children: list[TreeNode] = field(default_factory=list)
 
 
-type ChildLoader = Callable[[TreeNode], Awaitable[Sequence[TreeNode]]]
+ChildLoader: TypeAlias = Callable[[TreeNode], Awaitable[Sequence[TreeNode]]]
 
 NODE_ROLE = int(Qt.ItemDataRole.UserRole) + 1
 CATEGORY_ROLE = NODE_ROLE + 1

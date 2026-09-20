@@ -1,12 +1,12 @@
 """Design tokens and the stylesheet built from them."""
 
 from dataclasses import dataclass, fields, replace
-from enum import StrEnum
 
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QFontDatabase, QPalette
 from PyQt6.QtWidgets import QApplication, QWidget
 
+from milonga.compat import StrEnum
 from milonga.core.enums import (
     AttrQuality,
     HostState,

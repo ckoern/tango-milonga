@@ -2,12 +2,15 @@
 
 import asyncio
 from collections.abc import Awaitable, Callable, Iterable, Sequence
-from typing import Any
+from typing import Any, TypeVar
+
+T = TypeVar("T")
+R = TypeVar("R")
 
 DEFAULT_CONCURRENCY = 8
 
 
-async def gather_limited[T, R](
+async def gather_limited(
     items: Iterable[T],
     worker: Callable[[T], Awaitable[R]],
     *,
@@ -23,7 +26,7 @@ async def gather_limited[T, R](
     return tuple(await asyncio.gather(*(guarded(item) for item in items)))
 
 
-async def gather_settled[T, R](
+async def gather_settled(
     items: Sequence[T],
     worker: Callable[[T], Awaitable[R]],
     *,

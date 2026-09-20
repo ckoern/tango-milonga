@@ -1,7 +1,6 @@
 """The navigator: Jive's five trees and Astor's host tree as one widget."""
 
 from collections.abc import Sequence
-from enum import StrEnum
 
 from PyQt6.QtCore import QModelIndex, QPoint, QSortFilterProxyModel, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
@@ -16,6 +15,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from milonga.compat import StrEnum
 from milonga.core.commands import (
     CreateDevice,
     CreateServer,

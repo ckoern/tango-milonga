@@ -13,7 +13,7 @@ import time
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import Any, TypeAlias
 
 from milonga.core.enums import (
     AttrDataFormat,
@@ -55,7 +55,7 @@ from milonga.core.model import (
 from milonga.core.names import AttributeRef, DeviceName, ServerName, starter_device
 from milonga.core.services.starter_protocol import ServerLine, format_server_line
 
-type CommandHandler = Callable[["FakeBackend", Any], Any]
+CommandHandler: TypeAlias = Callable[["FakeBackend", Any], Any]
 
 STARTER_CLASS = "Starter"
 ADMIN_CLASS = "DServer"

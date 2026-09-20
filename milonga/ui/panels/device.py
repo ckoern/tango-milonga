@@ -7,7 +7,7 @@ selected attribute.
 """
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, TypeVar
 
 from PyQt6.QtCore import QModelIndex, QPoint, Qt
 from PyQt6.QtGui import QHideEvent, QShowEvent
@@ -58,6 +58,8 @@ from milonga.ui.theme import Tokens, device_state_category, set_role
 from milonga.ui.widgets import CommandBar, WriteBar
 from milonga.ui.wizards import PollingDialog
 from milonga.ui.write import WriteAction
+
+T = TypeVar("T")
 
 STATE_ATTRIBUTE = "State"
 
@@ -343,7 +345,7 @@ class DevicePanel(Panel):
                 self.command_view.setCurrentIndex(index)
                 return
 
-    def _table_menu[T](
+    def _table_menu(
         self,
         view: QAbstractItemView,
         row_at: Callable[[QModelIndex], T | None],

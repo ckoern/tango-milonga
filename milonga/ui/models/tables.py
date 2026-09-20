@@ -2,7 +2,7 @@
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Generic, TypeVar
 
 from PyQt6.QtCore import QAbstractTableModel, QModelIndex, QObject, Qt
 
@@ -10,9 +10,11 @@ from milonga.core.enums import StateCategory
 from milonga.ui.models.tree import CATEGORY_ROLE
 from milonga.ui.theme import mono_font
 
+T = TypeVar("T")
+
 
 @dataclass(frozen=True, slots=True)
-class Column[T]:
+class Column(Generic[T]):
     title: str
     value: Callable[[T], str]
     tooltip: Callable[[T], str] | None = None
@@ -22,7 +24,7 @@ class Column[T]:
     stretch: int = 1
 
 
-class ObjectTableModel[T](QAbstractTableModel):
+class ObjectTableModel(QAbstractTableModel, Generic[T]):
     def __init__(self, columns: Sequence[Column[T]], parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._columns = list(columns)

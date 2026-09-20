@@ -6,7 +6,7 @@ on the caller's event loop, never on a transport thread.
 """
 
 from collections.abc import Callable, Mapping, Sequence
-from typing import Any, Protocol
+from typing import Any, Protocol, TypeAlias
 
 from milonga.core.enums import EventType, LogLevel, PollableKind
 from milonga.core.model import (
@@ -28,8 +28,8 @@ from milonga.core.model import (
 )
 from milonga.core.names import AttributeRef, DeviceName, ServerName
 
-type SubscriptionId = int
-type EventCallback = Callable[[EventData], None]
+SubscriptionId: TypeAlias = int
+EventCallback: TypeAlias = Callable[[EventData], None]
 
 
 class DatabaseBackend(Protocol):
@@ -179,4 +179,4 @@ class TangoBackend(DatabaseBackend, DeviceBackend, EventBackend, Protocol):
     async def close(self) -> None: ...
 
 
-type PropertyMapping = Mapping[str, PropertyValues]
+PropertyMapping: TypeAlias = Mapping[str, PropertyValues]

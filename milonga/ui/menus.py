@@ -2,6 +2,7 @@
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from typing import TypeAlias
 
 from PyQt6.QtCore import QPoint
 from PyQt6.QtWidgets import QAbstractScrollArea, QMenu, QWidget
@@ -16,7 +17,7 @@ class MenuEntry:
 
 SEPARATOR = None
 
-type MenuItems = Sequence[MenuEntry | None]
+MenuItems: TypeAlias = Sequence[MenuEntry | None]
 
 
 def build_menu(parent: QWidget, items: MenuItems) -> QMenu:

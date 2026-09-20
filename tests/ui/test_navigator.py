@@ -124,10 +124,11 @@ async def test_double_clicking_a_branch_opens_its_members_as_tiles(
     targets: list[Target] = []
     navigator.targetActivated.connect(targets.append)
     index = navigator.proxy.index(0, 0, QModelIndex())
-    label = navigator.node_at(index).label
+    node = navigator.node_at(index)
+    assert node is not None
     navigator.view.doubleClicked.emit(index)
     assert targets and targets[0].kind is TargetKind.TILES
-    assert targets[0].path == ("CLASSES", label)
+    assert targets[0].path == ("CLASSES", node.label)
 
 
 async def test_double_clicking_a_leaf_opens_its_panel(navigator: Navigator) -> None:

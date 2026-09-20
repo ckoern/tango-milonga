@@ -3,7 +3,6 @@
 import re
 from dataclasses import dataclass
 from functools import total_ordering
-from typing import Self
 
 _SEGMENT = re.compile(r"^[A-Za-z0-9_\-.+*]+$")
 _URI_PREFIX = re.compile(r"^(?:tango://)?(?P<host>[^/]+:\d+)/(?P<rest>.+)$", re.IGNORECASE)
@@ -63,7 +62,7 @@ class DeviceName(_CaseInsensitive):
         _check_segment(self.member, "member")
 
     @classmethod
-    def parse(cls, text: str) -> Self:
+    def parse(cls, text: str) -> "DeviceName":
         parts = text.strip().strip("/").split("/")
         if len(parts) != 3:
             raise TangoNameError(f"device name must have three fields: {text!r}")
@@ -89,7 +88,7 @@ class ServerName(_CaseInsensitive):
         _check_segment(self.instance, "server instance")
 
     @classmethod
-    def parse(cls, text: str) -> Self:
+    def parse(cls, text: str) -> "ServerName":
         parts = text.strip().strip("/").split("/")
         if len(parts) != 2:
             raise TangoNameError(f"server name must have two fields: {text!r}")
@@ -118,7 +117,7 @@ class AttributeRef(_CaseInsensitive):
         _check_segment(self.attribute, "attribute name")
 
     @classmethod
-    def parse(cls, text: str) -> Self:
+    def parse(cls, text: str) -> "AttributeRef":
         device, _, attribute = text.strip().rpartition("/")
         return cls(DeviceName.parse(device), attribute)
 

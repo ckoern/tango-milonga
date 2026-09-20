@@ -7,6 +7,7 @@ what changed, so views can repaint rows instead of resetting models.
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
+from typing import TypeAlias
 
 from milonga.core.model import (
     AttributeValue,
@@ -16,8 +17,8 @@ from milonga.core.model import (
 )
 from milonga.core.names import AttributeRef, DeviceName, ServerName
 
-type StoreListener = Callable[["StoreDiff"], None]
-type Unsubscribe = Callable[[], None]
+StoreListener: TypeAlias = Callable[["StoreDiff"], None]
+Unsubscribe: TypeAlias = Callable[[], None]
 
 
 @dataclass(frozen=True, slots=True)

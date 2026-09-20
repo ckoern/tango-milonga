@@ -6,12 +6,12 @@ nothing reaches the database without passing through a diff.
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from enum import StrEnum
 from typing import Any
 
 from PyQt6.QtCore import QAbstractTableModel, QModelIndex, QObject, Qt
 from PyQt6.QtGui import QColor, QFont
 
+from milonga.compat import StrEnum
 from milonga.core.commands import Command, DeleteProperties, PropertyTarget, PutProperties
 from milonga.core.model import PropertyEntry, PropertyValues
 from milonga.ui.theme import Tokens, mono_font

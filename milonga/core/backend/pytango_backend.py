@@ -18,7 +18,7 @@ from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypeVar
 
 import numpy as np
 import tango
@@ -79,6 +79,8 @@ from milonga.core.model import (
     ServerInfo,
 )
 from milonga.core.names import AttributeRef, DeviceName, ServerName
+
+T = TypeVar("T")
 
 ADMIN_DOMAIN = "dserver"
 ADMIN_CLASS = "DServer"
@@ -442,7 +444,7 @@ class PyTangoBackend:
 
     # ------------------------------------------------------------------ plumbing
 
-    async def _db[T](self, operation: str, call: Callable[[Any], T], target: str = "") -> T:
+    async def _db(self, operation: str, call: Callable[[Any], T], target: str = "") -> T:
         database = await self._connect()
         loop = asyncio.get_running_loop()
         try:
@@ -513,7 +515,7 @@ class PyTangoBackend:
         proxy.set_timeout_millis(self._timeout_ms)
         return proxy
 
-    async def _device[T](self, device: DeviceName, operation: str, call: Callable[[Any], T]) -> T:
+    async def _device(self, device: DeviceName, operation: str, call: Callable[[Any], T]) -> T:
         host = await self._host_of(device)
         breaker = self._breakers.setdefault(host, _Breaker())
         breaker.check(host or "unknown")

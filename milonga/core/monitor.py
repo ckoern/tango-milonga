@@ -10,6 +10,7 @@ import asyncio
 from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass, field, replace
+from typing import TypeAlias
 
 from milonga.core.backend.protocol import SubscriptionId, TangoBackend
 from milonga.core.enums import DataSource, EventType
@@ -19,8 +20,8 @@ from milonga.core.names import AttributeRef
 from milonga.core.store import SystemStore
 from milonga.core.tasks import drain_tasks
 
-type MonitorCallback = Callable[[EventData], None]
-type ChannelKey = tuple[AttributeRef, EventType]
+MonitorCallback: TypeAlias = Callable[[EventData], None]
+ChannelKey: TypeAlias = tuple[AttributeRef, EventType]
 
 DEFAULT_FALLBACK_PERIOD = 1.0
 
